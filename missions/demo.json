@@ -1,0 +1,22 @@
+{
+  "schema_version": "apr.mission.v0.2",
+  "mission_id": "builtin-demo",
+  "backend": "local-demo",
+  "workload": {
+    "kind": "builtin-demo"
+  },
+  "limits": {
+    "timeout_seconds": 5,
+    "memory_mb": 256,
+    "cpu_millis": 1000,
+    "pids": 64
+  },
+  "network": {
+    "mode": "none"
+  },
+  "artifacts": {
+    "required": true,
+    "max_files": 100,
+    "max_bytes": 5242880
+  }
+}
