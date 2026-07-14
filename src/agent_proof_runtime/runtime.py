@@ -9,10 +9,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from .bundle import SCHEMA_VERSION, compute_bundle_hash, write_bundle
+from .bundle import SCHEMA_VERSION, SCHEMA_VERSION_V2, compute_bundle_hash, write_bundle
 from .canonical import CANONICALIZATION_PROFILE, HASH_ALGORITHM, sha256_digest
 from .chain import EventChain
 from .merkle import merkle_root_from_step_hashes
+from .mission import MissionSpec, load_mission
 from .report import write_report
 from .sandbox import LocalProcessSandbox
 from .validator import VerificationResult, verify_bundle
@@ -29,6 +30,9 @@ class DemoRunResult:
     report_path: Path
     mission_status: str
     verification: VerificationResult
+
+
+MissionRunResult = DemoRunResult
 
 
 def _timestamp() -> str:
@@ -175,6 +179,148 @@ def run_demo(output_dir: str | Path) -> DemoRunResult:
     report_path = destination / "report.html"
     write_report(report_path, bundle, verification)
     return DemoRunResult(
+        output_dir=destination,
+        bundle_path=bundle_path,
+        report_path=report_path,
+        mission_status=mission_status,
+        verification=verification,
+    )
+
+
+def run_mission(
+    mission: str | Path | MissionSpec, output_dir: str | Path
+) -> MissionRunResult:
+    spec = load_mission(mission) if not isinstance(mission, MissionSpec) else mission
+
+    if spec.backend == "local-demo":
+        backend: Any = LocalProcessSandbox()
+    elif spec.backend == "gvisor":
+        from .gvisor import BackendUnavailableError, DockerGVisorSandbox
+
+        backend = DockerGVisorSandbox()
+        doctor = backend.doctor()
+        if not doctor.available:
+            failed = [check for check in doctor.checks if not check["passed"]]
+            detail = "; ".join(str(check["detail"]) for check in failed)
+            raise BackendUnavailableError(f"gVisor backend unavailable: {detail}")
+    else:
+        raise ValueError(f"unsupported backend: {spec.backend}")
+
+    destination = Path(output_dir)
+    if destination.exists():
+        raise RunDirectoryExists(f"run directory already exists: {destination}")
+    destination.mkdir(parents=True, exist_ok=False)
+
+    run_id = str(uuid.uuid4())
+    started_at = _timestamp()
+    chain = EventChain()
+    run_details = {
+        "run_id": run_id,
+        "sandbox_backend": backend.backend_name,
+        "security_level": backend.security_level,
+        "network_policy": backend.network_policy,
+    }
+    chain.append(
+        "runtime.mission_started",
+        event_input={
+            "mission_id": spec.mission_id,
+            "mission_spec_hash": spec.spec_hash,
+        },
+        event_output={"workspace": "created"},
+        details=run_details,
+    )
+
+    if spec.backend == "local-demo":
+        sandbox_result = backend.run(
+            destination / "artifact",
+            run_id=run_id,
+            timeout=spec.limits.timeout_seconds,
+            max_artifact_files=spec.artifacts.max_files,
+            max_artifact_bytes=spec.artifacts.max_bytes,
+        )
+    else:
+        sandbox_result = backend.run(
+            spec,
+            destination / "artifact",
+            run_id=run_id,
+        )
+
+    for backend_event in sandbox_result.events:
+        chain.append(
+            backend_event["type"],
+            event_input=backend_event["input"],
+            event_output=backend_event["output"],
+            details=backend_event["details"],
+        )
+
+    artifacts = _artifact_manifest(destination)
+    for artifact in artifacts:
+        chain.append(
+            "runtime.artifact_collected",
+            event_input={"path": artifact["path"]},
+            event_output=artifact,
+            details={"collector": "runtime", "method": "sha256"},
+        )
+
+    checks = [
+        {"name": "backend_exit_zero", "passed": sandbox_result.return_code == 0},
+        {"name": "backend_protocol_valid", "passed": not sandbox_result.protocol_errors},
+        {
+            "name": "artifact_requirement_met",
+            "passed": bool(artifacts) or not spec.artifacts.required,
+        },
+    ]
+    mission_status = "PASSED" if all(check["passed"] for check in checks) else "FAILED"
+    validation = {
+        "status": mission_status,
+        "checks": checks,
+        "stderr_hash": sha256_digest(sandbox_result.stderr.encode("utf-8")),
+    }
+    chain.append(
+        "runtime.validation_completed",
+        event_input={"check_count": len(checks)},
+        event_output=validation,
+        details={
+            "artifact_required": spec.artifacts.required,
+            "backend_return_code": sandbox_result.return_code,
+            "protocol_errors": sandbox_result.protocol_errors,
+        },
+    )
+
+    events = chain.events
+    bundle: dict[str, Any] = {
+        "schema_version": SCHEMA_VERSION_V2,
+        "mission": {"spec": spec.to_dict(), "spec_hash": spec.spec_hash},
+        "run": {
+            "run_id": run_id,
+            "started_at": started_at,
+            "finished_at": _timestamp(),
+            "duration_ms": sandbox_result.duration_ms,
+            "sandbox_backend": backend.backend_name,
+            "security_level": backend.security_level,
+            "network_policy": backend.network_policy,
+        },
+        "events": events,
+        "artifacts": artifacts,
+        "validation": validation,
+        "integrity": {
+            "canonicalization": CANONICALIZATION_PROFILE,
+            "hash_algorithm": HASH_ALGORITHM,
+            "event_count": len(events),
+            "event_merkle_root": merkle_root_from_step_hashes(
+                [event["step_hash"] for event in events]
+            ),
+            "anchor_status": "UNANCHORED",
+        },
+    }
+    bundle["integrity"]["bundle_hash"] = compute_bundle_hash(bundle)
+
+    bundle_path = destination / "proof-bundle.json"
+    write_bundle(bundle_path, bundle)
+    verification = verify_bundle(bundle_path)
+    report_path = destination / "report.html"
+    write_report(report_path, bundle, verification)
+    return MissionRunResult(
         output_dir=destination,
         bundle_path=bundle_path,
         report_path=report_path,

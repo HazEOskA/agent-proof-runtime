@@ -1,0 +1,25 @@
+{
+  "schema_version": "apr.mission.v0.2",
+  "mission_id": "gvisor-python-example",
+  "backend": "gvisor",
+  "workload": {
+    "kind": "container-command",
+    "image": "python:3.12-alpine@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "command": ["python", "agent.py"],
+    "source": "workloads/python-hello"
+  },
+  "limits": {
+    "timeout_seconds": 30,
+    "memory_mb": 256,
+    "cpu_millis": 1000,
+    "pids": 64
+  },
+  "network": {
+    "mode": "none"
+  },
+  "artifacts": {
+    "required": true,
+    "max_files": 100,
+    "max_bytes": 5242880
+  }
+}
