@@ -21,6 +21,13 @@ def write_report(
 ) -> None:
     run = bundle["run"]
     integrity = bundle["integrity"]
+    schema_version = bundle.get("schema_version", "unknown")
+    mission_value = bundle.get("mission")
+    mission_id = (
+        mission_value.get("spec", {}).get("mission_id", "legacy-demo")
+        if isinstance(mission_value, dict)
+        else "legacy-demo"
+    )
     proof_ok = verification.status == "LOCAL_VERIFIED"
     proof_class = "ok" if proof_ok else "bad"
     mission_class = "ok" if verification.mission_status == "PASSED" else "bad"
@@ -44,13 +51,23 @@ def write_report(
     error_items = "".join(
         f"<li>{escape(error)}</li>" for error in verification.errors
     ) or "<li>None</li>"
+    if run["security_level"] == "sandboxed":
+        boundary_notice = (
+            "<strong>Sandboxed execution.</strong> gVisor and blocked networking form the "
+            "execution boundary, but this receipt is still unsigned and externally unanchored."
+        )
+    else:
+        boundary_notice = (
+            "<strong>Development boundary.</strong> This run is internally verifiable but not "
+            "externally anchored or signed. The local-process backend is not safe for hostile code."
+        )
 
     document = f"""<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Agent Proof Runtime — {escape(run['run_id'])}</title>
+  <title>Agent Proof Runtime — {escape(str(mission_id))}</title>
   <style>
     :root {{ color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }}
     * {{ box-sizing: border-box; }}
@@ -75,7 +92,7 @@ def write_report(
 </head>
 <body>
 <main>
-  <div class="eyebrow">Agent Proof Runtime · v0.1</div>
+  <div class="eyebrow">Agent Proof Runtime · {escape(str(schema_version))}</div>
   <h1>Execution receipt</h1>
   <section class="grid">
     <div class="card"><div class="label">Proof</div><div class="value {proof_class}">{escape(verification.status)}</div></div>
@@ -83,8 +100,9 @@ def write_report(
     <div class="card"><div class="label">Anchor</div><div class="value">{escape(verification.anchor_status)}</div></div>
     <div class="card"><div class="label">Security</div><div class="value">{escape(run['security_level'])}</div></div>
   </section>
-  <div class="warning"><strong>Development boundary.</strong> This run is internally verifiable but not externally anchored or signed. The local-process backend is not safe for hostile code.</div>
+  <div class="warning">{boundary_notice}</div>
   <section class="grid">
+    <div class="card"><div class="label">Mission</div><div class="value"><code>{escape(str(mission_id))}</code></div></div>
     <div class="card"><div class="label">Run ID</div><div class="value"><code>{escape(run['run_id'])}</code></div></div>
     <div class="card"><div class="label">Backend</div><div class="value">{escape(run['sandbox_backend'])}</div></div>
     <div class="card"><div class="label">Events</div><div class="value">{len(bundle['events'])}</div></div>
