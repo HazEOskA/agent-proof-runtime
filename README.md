@@ -98,11 +98,13 @@ APR_OPENAI_MODEL=gpt-5.6 apr run examples/build-week-mission.json \
   --output .runs/gpt-5-6-smoke
 ```
 
-Current status: **IMPLEMENTED BUT NOT LIVE-VALIDATED**. No real OpenAI request was
-made in the Work environment used for this branch. Mocked SDK tests cover request
-shape, structured parsing, safe metadata, absent-key behavior, and secret
-non-persistence. The status changes in a successful real run's metadata only after
-the API returns a valid structured response.
+Current status: **LIVE-VALIDATED**. On 2026-07-15, a controlled local GPT-5.6 run
+completed with mission `PASSED`, proof `LOCAL_VERIFIED`, and anchor `UNANCHORED`.
+Independent verification replayed all five recorded events, and a persistence scan
+confirmed that the API key was absent from every stored run file. The key was
+provided only through the current process environment and removed immediately after
+the run. This validates the provider integration; it does not change APR's local,
+unsigned, externally unanchored trust boundary.
 
 ## Mission Manifest v1
 
@@ -172,9 +174,12 @@ apr doctor --backend gvisor
 adapter is fail-closed: if Docker does not report `runsc`, `apr doctor` reports
 unavailable and execution does not silently fall back to `runc`.
 
-Linux Docker + `runsc` was not available in the current Work environment, so real
-gVisor execution, network containment, and Docker image build are not claimed as
-validated here.
+The checked-in Docker image and containerized Mission Control flow were validated
+on Windows Docker Desktop 4.74.0 with a Linux/amd64 engine: the container ran as
+non-root user `uid=10001(apr)`, `/health` returned version `0.3.0`, Docker reported
+`running / healthy`, and the full fixture/Tamper Lab judge path passed. Real gVisor
+execution and `runsc` network containment remain unvalidated because `runsc` was
+not installed in that environment.
 
 ## Tests
 
@@ -231,8 +236,8 @@ Human architectural decisions locked the product as sandbox-first, required hone
 `UNANCHORED`/`development-only` labels, preserved backward compatibility, and chose
 fixture-first judging without an API key. Codex implemented and tested the branch
 under those constraints. GPT-5.6 is the optional runtime artifact-proposal provider;
-it was not used as the verifier and was not called live in the original Work
-environment.
+it is not used as the verifier. The provider was live-validated in a controlled
+local run after the original keyless Work implementation was complete.
 
 See:
 
