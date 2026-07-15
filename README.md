@@ -11,6 +11,7 @@ Product doctrine:
 
 - [Agent Proof Runtime Manifesto](docs/PROJECT_MANIFESTO.md)
 - [Product Blueprint](docs/PRODUCT_BLUEPRINT.md)
+- [Controlled live validation](docs/LIVE_VALIDATION.md)
 
 ## The problem
 
@@ -243,6 +244,7 @@ See:
 
 - [Project Manifesto](docs/PROJECT_MANIFESTO.md)
 - [Product Blueprint](docs/PRODUCT_BLUEPRINT.md)
+- [Controlled live validation](docs/LIVE_VALIDATION.md)
 - [Build Week guide](docs/BUILD_WEEK.md)
 - [Architecture Lock](docs/ARCHITECTURE_LOCK_BUILD_WEEK_v1.md)
 - [Before Build Week](docs/BEFORE_BUILD_WEEK.md)
