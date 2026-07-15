@@ -4,6 +4,14 @@ Agent Proof Runtime (APR) turns autonomous AI work into independently verifiable
 execution evidence. It is a development sandbox and proof runtime, not a claim of
 hardware-backed trust.
 
+> **Proof before trust.** The agent performs the work. The runtime records the
+> evidence. The verifier checks the proof. The human makes the decision.
+
+Product doctrine:
+
+- [Agent Proof Runtime Manifesto](docs/PROJECT_MANIFESTO.md)
+- [Product Blueprint](docs/PRODUCT_BLUEPRINT.md)
+
 ## The problem
 
 An agent can produce a useful artifact and a convincing activity log, but neither
@@ -209,20 +217,27 @@ boundary really exists.
 
 ## Build Week provenance and collaboration
 
-The repository's `main` baseline is `4a22da3`. Earlier project commits added the
-sandbox/proof vertical slice (`9ff5152`), MissionSpec + gVisor (`fcfb7d0`), and the
-first Mission Control (`f03fe35`). This branch preserves `f03fe35` and extends it
-incrementally with the v1 manifest/provider/proof path, Tamper Lab, coverage,
-documentation, and deployment preparation.
+The public GitHub `main` baseline before Build Week publication is `8bba7ed`. The
+Build Week branch preserves the original Codex implementation lineage
+(`4a22da3` -> `9ff5152` -> `fcfb7d0` -> `f03fe35`) and connects it to the public
+GitHub history through merge commit `1b51055`, without rewriting or force-pushing
+either history.
+
+The branch extends that preserved implementation incrementally with the v1
+manifest/provider/proof path, Tamper Lab, security coverage, competition
+documentation, product doctrine, and deployment preparation.
 
 Human architectural decisions locked the product as sandbox-first, required honest
 `UNANCHORED`/`development-only` labels, preserved backward compatibility, and chose
 fixture-first judging without an API key. Codex implemented and tested the branch
 under those constraints. GPT-5.6 is the optional runtime artifact-proposal provider;
-it was not used as the verifier and was not called live in this environment.
+it was not used as the verifier and was not called live in the original Work
+environment.
 
 See:
 
+- [Project Manifesto](docs/PROJECT_MANIFESTO.md)
+- [Product Blueprint](docs/PRODUCT_BLUEPRINT.md)
 - [Build Week guide](docs/BUILD_WEEK.md)
 - [Architecture Lock](docs/ARCHITECTURE_LOCK_BUILD_WEEK_v1.md)
 - [Before Build Week](docs/BEFORE_BUILD_WEEK.md)
