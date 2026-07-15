@@ -32,6 +32,7 @@ from .build_week_runtime import ArtifactPolicyError, run_build_week_mission
 from .providers import ProviderError
 from .runtime import RunDirectoryExists, run_mission
 from .validator import verify_bundle
+from .tamper_lab import TAMPER_CASES, run_tamper_case
 
 MAX_REQUEST_BYTES = 16 * 1024
 RUN_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
@@ -362,6 +363,20 @@ class MissionControl:
         run_dir = _run_directory(self.config.runs_dir, run_name)
         return _read_run(run_dir)
 
+    def detail(self, run_name: str) -> dict[str, Any]:
+        run_dir = _run_directory(self.config.runs_dir, run_name)
+        bundle_path = _relative_file(run_dir, "proof-bundle.json", suffix=".json")
+        return {"summary": _read_run(run_dir), "evidence": load_bundle(bundle_path)}
+
+    def tamper(self, run_name: str, case: str) -> dict[str, Any]:
+        if case not in TAMPER_CASES:
+            raise MissionControlError("tamper case must be artifact, event, or metadata")
+        run_dir = _run_directory(self.config.runs_dir, run_name)
+        try:
+            return run_tamper_case(run_dir, case)
+        except (OSError, ValueError, RuntimeError) as error:
+            raise MissionControlError(str(error)) from error
+
     def public_file(self, request_path: str) -> Path:
         parts = PurePosixPath(unquote(request_path)).parts
         if len(parts) < 3 or parts[0] != "/" or parts[1] != "runs":
@@ -479,13 +494,27 @@ def _handler_factory(control: MissionControl) -> type[BaseHTTPRequestHandler]:
             path = urlsplit(self.path).path
             try:
                 self._require_allowed_host()
-                if path == "/":
+                if path == "/health":
+                    self._send_json(
+                        {
+                            "ok": True,
+                            "status": "healthy",
+                            "service": "apr-mission-control",
+                            "version": __version__,
+                        }
+                    )
+                elif path == "/":
                     document = render_mission_control(control.csrf_token).encode("utf-8")
                     self._send_bytes(
                         document, "text/html; charset=utf-8", dashboard=True
                     )
                 elif path == "/api/state":
                     self._send_json({"ok": True, **control.state()})
+                elif path.startswith("/api/runs/"):
+                    parts = PurePosixPath(path).parts
+                    if len(parts) != 4 or parts[:3] != ("/", "api", "runs"):
+                        raise MissionControlError("route not found", HTTPStatus.NOT_FOUND)
+                    self._send_json({"ok": True, **control.detail(parts[3])})
                 elif path.startswith("/runs/"):
                     file_path = control.public_file(path)
                     content_type = (
@@ -516,6 +545,11 @@ def _handler_factory(control: MissionControl) -> type[BaseHTTPRequestHandler]:
                         raise MissionControlError("expected only run_id")
                     run = control.verify(value["run_id"])
                     self._send_json({"ok": True, "run": run})
+                elif path == "/api/tamper":
+                    if set(value) != {"run_id", "case"}:
+                        raise MissionControlError("expected only run_id and case")
+                    result = control.tamper(value["run_id"], value["case"])
+                    self._send_json({"ok": True, "result": result})
                 else:
                     raise MissionControlError("route not found", HTTPStatus.NOT_FOUND)
             except Exception as error:  # request boundary

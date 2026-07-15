@@ -829,8 +829,12 @@ def _validate_build_week_artifacts(
         if not isinstance(size, int) or isinstance(size, bool) or size < 0:
             errors.append(f"{label} size must be a non-negative integer")
             continue
-        if target.stat().st_size != size:
-            errors.append(f"{label} size mismatch")
+        try:
+            if target.stat().st_size != size:
+                errors.append(f"{label} size mismatch")
+        except OSError as error:
+            errors.append(f"{label} cannot be inspected: {error}")
+            continue
         if contract and size > contract.max_bytes:
             errors.append(f"{label} exceeds contract max_bytes")
         try:
@@ -838,8 +842,12 @@ def _validate_build_week_artifacts(
         except ValueError as error:
             errors.append(f"{label} has an invalid digest: {error}")
             continue
-        if _hash_file(target) != artifact["sha256"]:
-            errors.append(f"{label} sha256 mismatch")
+        try:
+            if _hash_file(target) != artifact["sha256"]:
+                errors.append(f"{label} sha256 mismatch")
+        except OSError as error:
+            errors.append(f"{label} cannot be hashed: {error}")
+            continue
         valid.append(artifact)
 
     artifact_root = run_root / "artifact"
@@ -930,9 +938,10 @@ def _verify_build_week_loaded(
                     errors.append("fixture response_id must be null")
                 if provider.get("implementation_status") != "DETERMINISTIC_FIXTURE":
                     errors.append("fixture implementation_status mismatch")
-            elif provider_name == "openai" and provider.get("implementation_status") != (
-                "IMPLEMENTED BUT NOT LIVE-VALIDATED"
-            ):
+            elif provider_name == "openai" and provider.get("implementation_status") not in {
+                "IMPLEMENTED BUT NOT LIVE-VALIDATED",
+                "LIVE_API_REQUEST_EXECUTED",
+            }:
                 errors.append("OpenAI implementation_status mismatch")
 
     run = bundle.get("run")
@@ -969,17 +978,17 @@ def _verify_build_week_loaded(
     )
     errors.extend(artifact_errors)
     if isinstance(provider, dict):
-        reconstructed = {
-            "artifacts": [
-                {
-                    "path": item["path"].removeprefix("artifact/"),
-                    "media_type": item["media_type"],
-                    "content": (bundle_path.parent / item["path"]).read_text(encoding="utf-8"),
-                }
-                for item in sorted(valid_artifacts, key=lambda value: value["path"])
-            ]
-        }
         try:
+            reconstructed = {
+                "artifacts": [
+                    {
+                        "path": item["path"].removeprefix("artifact/"),
+                        "media_type": item["media_type"],
+                        "content": (bundle_path.parent / item["path"]).read_text(encoding="utf-8"),
+                    }
+                    for item in sorted(valid_artifacts, key=lambda value: value["path"])
+                ]
+            }
             if provider.get("response_hash") != hash_json(reconstructed):
                 errors.append("provider.response_hash does not match materialized artifacts")
         except (OSError, UnicodeError, CanonicalizationError) as error:

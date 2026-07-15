@@ -226,6 +226,7 @@ class OpenAIProvider:
         return OpenAI(api_key=api_key, timeout=mission.limits.provider_timeout_seconds)
 
     def propose(self, mission: BuildWeekMission) -> ProviderResult:
+        live_request = self._client is None
         client = self._client_for(mission)
         requested_model = os.environ.get("APR_OPENAI_MODEL", mission.model)
         provider_input = mission.provider_input()
@@ -276,7 +277,11 @@ class OpenAIProvider:
             latency_ms=latency_ms,
             input_hash=hash_json(provider_input),
             proposal=proposal,
-            implementation_status=OPENAI_IMPLEMENTATION_STATUS,
+            implementation_status=(
+                "LIVE_API_REQUEST_EXECUTED"
+                if live_request
+                else OPENAI_IMPLEMENTATION_STATUS
+            ),
         )
         return ProviderResult(proposal=proposal, metadata=metadata)
 

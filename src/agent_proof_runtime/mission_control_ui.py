@@ -78,6 +78,12 @@ def render_mission_control(csrf_token: str) -> str:
     .run a {{ color: var(--blue); font-size: 13px; font-weight: 700; text-decoration: none; }} .run a:hover {{ text-decoration: underline; }}
     .verify {{ background: transparent; color: #cbd4db; border: 1px solid #3a4650; min-height: 34px; padding: 0 10px; }}
     .empty {{ padding: 34px; color: var(--muted); text-align: center; }}
+    .evidence {{ margin-top: 14px; display: none; }} .evidence.show {{ display: block; }}
+    .evidence-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 14px 0; }}
+    .evidence-list {{ margin: 12px 0 0; padding: 0; list-style: none; }}
+    .evidence-list li {{ display: grid; grid-template-columns: 1.3fr .7fr; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }}
+    .tamper-actions {{ display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 15px; }}
+    .tamper {{ background: transparent; color: var(--red); border: 1px solid #64302c; }}
     .toast {{ position: fixed; right: 20px; bottom: 20px; width: min(390px, calc(100% - 40px)); padding: 14px 16px; border-radius: 10px; background: #e9eff3; color: #111519; box-shadow: 0 18px 70px #0009; font-size: 13px; transform: translateY(130%); transition: transform .22s ease; }}
     .toast.show {{ transform: translateY(0); }} .toast.error {{ background: #ffd8d5; color: #3a1110; }}
     .skeleton {{ min-height: 180px; display: grid; place-items: center; color: var(--muted); }}
@@ -85,6 +91,7 @@ def render_mission_control(csrf_token: str) -> str:
     @media (max-width: 780px) {{
       .stats {{ grid-template-columns: repeat(2, 1fr); }} .stat:nth-child(2) {{ border-right: 0; }} .stat:nth-child(-n+2) {{ border-bottom: 1px solid var(--line); }}
       .missions {{ grid-template-columns: 1fr; }}
+      .evidence-grid {{ grid-template-columns: 1fr; }}
       .run {{ grid-template-columns: 1fr auto; }} .run > :not(:first-child):not(:last-child) {{ display: none; }}
       .system span:last-child {{ display: none; }}
     }}
@@ -99,25 +106,26 @@ def render_mission_control(csrf_token: str) -> str:
     </header>
     <main>
       <section class="hero">
-        <div class="eyebrow">Agent sandbox · proof runtime</div>
-        <h1>Uruchom. Odizoluj. Udowodnij.</h1>
-        <p class="lead">Jedno miejsce do startowania zatwierdzonych misji agentów i sprawdzania, czy wynik oraz historia wykonania pozostały nienaruszone.</p>
-        <div class="truth">● Lokalny dowód jest sprawdzalny. Zewnętrzna kotwica nie jest jeszcze podłączona.</div>
+        <div class="eyebrow">Agent sandbox · verifiable execution</div>
+        <h1>Autonomous work that proves itself.</h1>
+        <p class="lead">Run approved missions, inspect deterministic acceptance evidence, and let an independent verifier detect changes to artifacts, events, or critical metadata.</p>
+        <div class="truth">● Development-only trust boundary. Evidence is locally verifiable and deliberately UNANCHORED.</div>
       </section>
       <section class="stats" aria-label="Stan systemu">
-        <div class="stat"><div class="label">Misje</div><div class="value" id="mission-count">—</div></div>
-        <div class="stat"><div class="label">Runy</div><div class="value" id="run-count">—</div></div>
+        <div class="stat"><div class="label">Missions</div><div class="value" id="mission-count">—</div></div>
+        <div class="stat"><div class="label">Runs</div><div class="value" id="run-count">—</div></div>
         <div class="stat"><div class="label">gVisor</div><div class="value" id="gvisor-status">—</div></div>
-        <div class="stat"><div class="label">Ostatni dowód</div><div class="value" id="proof-status">—</div></div>
+        <div class="stat"><div class="label">Latest proof</div><div class="value" id="proof-status">—</div></div>
       </section>
 
-      <div class="section-head"><div><div class="eyebrow">01 / Start</div><h2>Zatwierdzone misje</h2></div><div class="section-note">Jedna misja naraz</div></div>
+      <div class="section-head"><div><div class="eyebrow">01 / Start</div><h2>Approved missions</h2></div><div class="section-note">Checked-in manifests only</div></div>
       <section class="missions" id="missions"><div class="card skeleton">Wczytywanie manifestów…</div></section>
 
-      <div class="section-head"><div><div class="eyebrow">02 / Proof</div><h2>Historia wykonania</h2></div><div class="section-note">Najnowsze pierwsze</div></div>
+      <div class="section-head"><div><div class="eyebrow">02 / Proof</div><h2>Execution history</h2></div><div class="section-note">Newest first</div></div>
       <section class="runs" id="runs"><div class="skeleton">Wczytywanie dowodów…</div></section>
+      <section class="card evidence" id="evidence"></section>
     </main>
-    <footer>APR Mission Control działa lokalnie i korzysta z tego samego runnera oraz niezależnego validatora co CLI. Panel nie przyjmuje dowolnych poleceń. Status <strong>UNANCHORED</strong> jest świadomą informacją o granicy zaufania, nie błędem interfejsu.</footer>
+    <footer>The UI is a view of evidence, never the source of truth. Mission Control accepts no arbitrary commands or filesystem paths. <strong>UNANCHORED</strong> means a host administrator could still replace and recompute local evidence; external trust is roadmap work.</footer>
   </div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script>
@@ -138,17 +146,29 @@ def render_mission_control(csrf_token: str) -> str:
       return body;
     }}
 
-    function missionCard(mission, gvisorReady) {{
+    function missionCard(mission, gvisorReady, openaiConfigured) {{
       if (!mission.valid) return `<article class="card"><div class="card-top"><div><div class="path">${{esc(mission.path)}}</div><h3>Nieprawidłowy manifest</h3></div><span class="badge bad">INVALID</span></div><p class="path">${{esc(mission.errors.join(' · '))}}</p></article>`;
-      const blocked = mission.backend === 'gvisor' && !gvisorReady;
-      const security = mission.backend === 'gvisor' ? 'sandboxed' : 'demo only';
-      return `<article class="card"><div class="card-top"><div><div class="path">${{esc(mission.path)}}</div><h3>${{esc(mission.mission_id)}}</h3></div><span class="badge ${{blocked ? 'warn' : 'ok'}}">${{esc(security)}}</span></div><div class="meta"><div><span class="k">Backend</span><span class="v">${{esc(mission.backend)}}</span></div><div><span class="k">Sieć</span><span class="v">${{esc(mission.network_mode)}}</span></div><div><span class="k">Limit</span><span class="v">${{esc(mission.timeout_seconds)}} s</span></div></div><div class="actions"><button data-run="${{esc(mission.path)}}" ${{blocked || busy ? 'disabled' : ''}}>${{blocked ? 'Brak runsc' : 'Uruchom misję'}}</button><span class="hash">${{esc(mission.spec_hash.slice(0, 18))}}…</span></div></article>`;
+      const needsKey = mission.provider === 'openai' && !openaiConfigured;
+      const blocked = (mission.backend === 'gvisor' && !gvisorReady) || needsKey;
+      const security = mission.backend === 'gvisor' ? 'sandboxed' : (mission.provider === 'fixture' ? 'fixture · offline' : 'development only');
+      const blockedLabel = needsKey ? 'OPENAI_API_KEY absent' : 'runsc unavailable';
+      return `<article class="card"><div class="card-top"><div><div class="path">${{esc(mission.path)}}</div><h3>${{esc(mission.title || mission.mission_id)}}</h3><div class="path">${{esc(mission.mission_id)}} · ${{esc(mission.model || 'no model')}}</div></div><span class="badge ${{blocked ? 'warn' : 'ok'}}">${{esc(security)}}</span></div><div class="meta"><div><span class="k">Provider</span><span class="v">${{esc(mission.provider)}}</span></div><div><span class="k">Network</span><span class="v">${{esc(mission.network_mode)}}</span></div><div><span class="k">Limit</span><span class="v">${{esc(mission.timeout_seconds)}} s</span></div></div><div class="actions"><button data-run="${{esc(mission.path)}}" ${{blocked || busy ? 'disabled' : ''}}>${{blocked ? blockedLabel : 'Run mission'}}</button><span class="hash">${{esc(mission.spec_hash.slice(0, 18))}}…</span></div></article>`;
     }}
 
     function runRow(run) {{
       const proofClass = run.proof_status === 'LOCAL_VERIFIED' ? 'ok' : 'bad';
-      const report = run.report_url ? `<a href="${{esc(run.report_url)}}" target="_blank" rel="noopener">Raport ↗</a>` : '<span class="path">brak raportu</span>';
-      return `<article class="run"><div><div class="run-title">${{esc(run.mission_id)}}</div><div class="run-sub">${{esc(run.started_at || run.run_id)}} · ${{esc(run.backend)}}</div></div><span class="badge ${{proofClass}}">${{esc(run.proof_status)}}</span><span class="badge ${{run.mission_status === 'PASSED' ? 'ok' : 'bad'}}">${{esc(run.mission_status)}}</span><span class="badge warn">${{esc(run.anchor_status)}}</span><div class="actions">${{report}}<button class="verify" data-verify="${{esc(run.run_id)}}">Sprawdź</button></div></article>`;
+      const report = run.report_url ? `<a href="${{esc(run.report_url)}}" target="_blank" rel="noopener">Report ↗</a>` : '<span class="path">no report</span>';
+      return `<article class="run"><div><div class="run-title">${{esc(run.mission_id)}}</div><div class="run-sub">${{esc(run.started_at || run.run_id)}} · ${{esc(run.provider)}} · ${{esc(run.backend)}}</div></div><span class="badge ${{proofClass}}">${{esc(run.proof_status)}}</span><span class="badge ${{run.mission_status === 'PASSED' ? 'ok' : 'bad'}}">${{esc(run.mission_status)}}</span><span class="badge warn">${{esc(run.anchor_status)}}</span><div class="actions">${{report}}<button class="verify" data-detail="${{esc(run.run_id)}}">Evidence</button><button class="verify" data-verify="${{esc(run.run_id)}}">Reverify</button></div></article>`;
+    }}
+
+    function evidenceView(detail) {{
+      const e = detail.evidence, run = detail.summary, integrity = e.integrity || {{}};
+      const provider = e.provider || {{provider:'sandbox', resolved_model:'n/a', implementation_status:'legacy sandbox'}};
+      const acceptance = e.acceptance || e.validation || {{checks:[]}};
+      const artifacts = (e.artifacts || []).map(a => `<li><span>${{esc(a.path)}} · ${{esc(a.size)}} B</span><code>${{esc(a.sha256)}}</code></li>`).join('') || '<li>No artifacts</li>';
+      const checks = (acceptance.checks || []).map(c => `<li><span>${{esc(c.id || c.name)}} · ${{esc(c.type || 'legacy')}}</span><span class="${{c.passed ? 'ok' : 'bad'}}">${{c.passed ? 'PASS' : 'FAIL'}}</span></li>`).join('') || '<li>No checks</li>';
+      const events = (e.events || []).map(item => `<li><span>${{esc(item.index)}} · ${{esc(item.type)}}</span><code>${{esc(item.step_hash)}}</code></li>`).join('');
+      return `<div class="card-top"><div><div class="eyebrow">03 / Evidence</div><h2>${{esc(run.mission_id)}}</h2></div><span class="badge ${{run.proof_status === 'LOCAL_VERIFIED' ? 'ok' : 'bad'}}">${{esc(run.proof_status)}}</span></div><div class="truth">Provider ${{esc(provider.provider)}} · ${{esc(provider.resolved_model)}} · ${{esc(provider.implementation_status)}}</div><div class="evidence-grid"><div class="meta"><div><span class="k">Anchor</span><span class="v">${{esc(integrity.anchor_status)}}</span></div></div><div class="meta"><div><span class="k">Merkle root</span><span class="v hash">${{esc(integrity.event_merkle_root)}}</span></div></div><div class="meta"><div><span class="k">Bundle hash</span><span class="v hash">${{esc(integrity.bundle_hash)}}</span></div></div></div><h3>Artifacts and hashes</h3><ul class="evidence-list">${{artifacts}}</ul><h3>Acceptance checks</h3><ul class="evidence-list">${{checks}}</ul><h3>Event replay</h3><ul class="evidence-list">${{events}}</ul><h3>Tamper Lab · disposable copies</h3><div class="tamper-actions"><button class="tamper" data-tamper="artifact" data-run-id="${{esc(run.run_id)}}">Tamper artifact</button><button class="tamper" data-tamper="event" data-run-id="${{esc(run.run_id)}}">Tamper event</button><button class="tamper" data-tamper="metadata" data-run-id="${{esc(run.run_id)}}">Tamper metadata</button><a href="${{esc(run.bundle_url)}}" target="_blank" rel="noopener">Proof Bundle ↗</a></div>`;
     }}
 
     async function refresh() {{
@@ -163,24 +183,37 @@ def render_mission_control(csrf_token: str) -> str:
         $('#proof-status').style.color = data.runs[0]?.proof_status === 'LOCAL_VERIFIED' ? 'var(--green)' : 'inherit';
         $('#system-status').textContent = ready ? 'gVisor gotowy' : 'tryb lokalny · runsc niedostępny';
         $('#system-dot').style.background = ready ? 'var(--green)' : 'var(--amber)';
-        $('#missions').innerHTML = data.missions.length ? data.missions.map(m => missionCard(m, ready)).join('') : '<div class="card empty">Brak manifestów w katalogu missions.</div>';
-        $('#runs').innerHTML = data.runs.length ? data.runs.map(runRow).join('') : '<div class="empty">Nie ma jeszcze żadnego runu. Uruchom pierwszą misję powyżej.</div>';
+        $('#missions').innerHTML = data.missions.length ? data.missions.map(m => missionCard(m, ready, data.service.openai_configured)).join('') : '<div class="card empty">No manifests in the configured directory.</div>';
+        $('#runs').innerHTML = data.runs.length ? data.runs.map(runRow).join('') : '<div class="empty">No runs yet. Start an approved mission above.</div>';
       }} catch (error) {{ toast(error.message, true); }}
     }}
 
     document.addEventListener('click', async (event) => {{
       const runButton = event.target.closest('[data-run]');
       const verifyButton = event.target.closest('[data-verify]');
-      if (!runButton && !verifyButton) return;
+      const detailButton = event.target.closest('[data-detail]');
+      const tamperButton = event.target.closest('[data-tamper]');
+      if (!runButton && !verifyButton && !detailButton && !tamperButton) return;
       try {{
         if (runButton) {{
           if (busy) return; busy = true; runButton.disabled = true; runButton.textContent = 'Misja pracuje…';
           const body = await api('/api/runs', {{method:'POST', headers:{{'Content-Type':'application/json','X-APR-Token':token}}, body:JSON.stringify({{mission_path:runButton.dataset.run}})}});
           toast(`Misja ${{body.run.mission_id}}: ${{body.run.proof_status}}`);
-        }} else {{
+        }} else if (verifyButton) {{
           verifyButton.disabled = true;
           const body = await api('/api/verify', {{method:'POST', headers:{{'Content-Type':'application/json','X-APR-Token':token}}, body:JSON.stringify({{run_id:verifyButton.dataset.verify}})}});
           toast(`Ponowna weryfikacja: ${{body.run.proof_status}}`, body.run.proof_status !== 'LOCAL_VERIFIED');
+        }} else if (detailButton) {{
+          const body = await api(`/api/runs/${{encodeURIComponent(detailButton.dataset.detail)}}`);
+          const node = $('#evidence');
+          node.innerHTML = evidenceView(body);
+          node.className = 'card evidence show';
+          node.scrollIntoView({{behavior:'smooth'}});
+        }} else if (tamperButton) {{
+          tamperButton.disabled = true;
+          const body = await api('/api/tamper', {{method:'POST', headers:{{'Content-Type':'application/json','X-APR-Token':token}}, body:JSON.stringify({{run_id:tamperButton.dataset.runId, case:tamperButton.dataset.tamper}})}});
+          const reason = body.result.errors[0] || 'tampering detected';
+          toast(`${{body.result.case}} copy: ${{body.result.status}} · ${{reason}} · original preserved=${{body.result.original_preserved}}`, body.result.status !== 'FAILED');
         }}
       }} catch (error) {{ toast(error.message, true); }} finally {{ busy = false; await refresh(); }}
     }});

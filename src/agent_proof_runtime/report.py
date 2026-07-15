@@ -23,11 +23,19 @@ def write_report(
     integrity = bundle["integrity"]
     schema_version = bundle.get("schema_version", "unknown")
     mission_value = bundle.get("mission")
-    mission_id = (
-        mission_value.get("spec", {}).get("mission_id", "legacy-demo")
-        if isinstance(mission_value, dict)
-        else "legacy-demo"
-    )
+    if isinstance(mission_value, dict):
+        mission_document = mission_value.get("manifest", mission_value.get("spec", {}))
+        mission_id = (
+            mission_document.get("mission_id", "legacy-demo")
+            if isinstance(mission_document, dict)
+            else "legacy-demo"
+        )
+    else:
+        mission_id = "legacy-demo"
+    provider_value = bundle.get("provider")
+    provider = provider_value if isinstance(provider_value, dict) else {}
+    acceptance_value = bundle.get("acceptance", bundle.get("validation", {}))
+    acceptance = acceptance_value if isinstance(acceptance_value, dict) else {}
     proof_ok = verification.status == "LOCAL_VERIFIED"
     proof_class = "ok" if proof_ok else "bad"
     mission_class = "ok" if verification.mission_status == "PASSED" else "bad"
@@ -48,6 +56,16 @@ def write_report(
         "</tr>"
         for artifact in bundle["artifacts"]
     ) or '<tr><td colspan="3">No artifacts</td></tr>'
+    check_rows = "".join(
+        "<tr>"
+        f"<td>{escape(str(check.get('id', check.get('name', 'unknown'))))}</td>"
+        f"<td>{escape(str(check.get('type', 'legacy')))}</td>"
+        f"<td class=\"{'ok' if check.get('passed') is True else 'bad'}\">"
+        f"{'PASS' if check.get('passed') is True else 'FAIL'}</td>"
+        "</tr>"
+        for check in acceptance.get("checks", [])
+        if isinstance(check, dict)
+    ) or '<tr><td colspan="3">No checks</td></tr>'
     error_items = "".join(
         f"<li>{escape(error)}</li>" for error in verification.errors
     ) or "<li>None</li>"
@@ -106,10 +124,15 @@ def write_report(
     <div class="card"><div class="label">Run ID</div><div class="value"><code>{escape(run['run_id'])}</code></div></div>
     <div class="card"><div class="label">Backend</div><div class="value">{escape(run['sandbox_backend'])}</div></div>
     <div class="card"><div class="label">Events</div><div class="value">{len(bundle['events'])}</div></div>
+    <div class="card"><div class="label">Provider</div><div class="value">{escape(str(provider.get('provider', 'sandbox')))}</div></div>
+    <div class="card"><div class="label">Model</div><div class="value"><code>{escape(str(provider.get('resolved_model', 'n/a')))}</code></div></div>
     <div class="card"><div class="label">Merkle root</div><div class="value"><code>{escape(_short_hash(integrity['event_merkle_root']))}</code></div></div>
+    <div class="card"><div class="label">Bundle hash</div><div class="value"><code>{escape(_short_hash(integrity['bundle_hash']))}</code></div></div>
   </section>
   <h2>Artifacts</h2>
   <table><thead><tr><th>Path</th><th>Size</th><th>SHA-256</th></tr></thead><tbody>{artifact_rows}</tbody></table>
+  <h2>Acceptance checks</h2>
+  <table><thead><tr><th>Check</th><th>Type</th><th>Result</th></tr></thead><tbody>{check_rows}</tbody></table>
   <h2>Execution chain</h2>
   <table><thead><tr><th>#</th><th>Event</th><th>Step hash</th></tr></thead><tbody>{event_rows}</tbody></table>
   <h2>Validator errors</h2>

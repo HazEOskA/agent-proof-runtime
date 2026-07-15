@@ -21,6 +21,7 @@ from .build_week_runtime import ArtifactPolicyError, run_build_week_mission
 from .providers import ProviderError
 from .runtime import RunDirectoryExists, run_demo, run_mission
 from .validator import verify_bundle
+from .tamper_lab import TAMPER_CASES, run_tamper_case
 
 
 def _default_output(label: str = "run") -> Path:
@@ -72,6 +73,13 @@ def _parser() -> argparse.ArgumentParser:
     doctor = commands.add_parser("doctor", help="check sandbox backend availability")
     doctor.add_argument("--backend", choices=["gvisor"], default="gvisor")
     doctor.add_argument("--json", action="store_true")
+
+    tamper = commands.add_parser(
+        "tamper-lab", help="verify a disposable tampered copy of a run"
+    )
+    tamper.add_argument("bundle", type=Path, help="original proof-bundle.json")
+    tamper.add_argument("--case", choices=TAMPER_CASES, required=True)
+    tamper.add_argument("--json", action="store_true")
 
     control = commands.add_parser(
         "mission-control", help="start the local operator dashboard"
@@ -144,6 +152,23 @@ def main(argv: Sequence[str] | None = None) -> int:
                 status = "PASS" if check["passed"] else "FAIL"
                 print(f"{status:4} {check['name']}: {check['detail']}")
         return 0 if result.available else 1
+
+    if arguments.command == "tamper-lab":
+        try:
+            result = run_tamper_case(arguments.bundle.parent, arguments.case)
+        except (OSError, ValueError, RuntimeError) as error:
+            print(f"ERROR: Tamper Lab failed: {error}", file=sys.stderr)
+            return 2
+        if arguments.json:
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+        else:
+            print(f"Case:     {result['case']}")
+            print(f"Copy:     {result['status']}")
+            print(f"Original: {result['original_status']}")
+            print(f"Preserved: {'YES' if result['original_preserved'] else 'NO'}")
+            for error in result["errors"]:
+                print(f"DETECTED: {error}")
+        return 0
 
     if arguments.command == "mission":
         try:
