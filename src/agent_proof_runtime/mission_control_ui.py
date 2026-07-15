@@ -8,7 +8,7 @@ import json
 def render_mission_control(csrf_token: str) -> str:
     token = json.dumps(csrf_token)
     return f'''<!doctype html>
-<html lang="pl">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -102,7 +102,7 @@ def render_mission_control(csrf_token: str) -> str:
   <div class="shell">
     <header>
       <div class="brand"><div class="mark">APR</div><span>Mission Control</span></div>
-      <div class="system"><span class="dot" id="system-dot"></span><span id="system-status">sprawdzanie runtime’u</span></div>
+      <div class="system"><span class="dot" id="system-dot"></span><span id="system-status">checking runtime</span></div>
     </header>
     <main>
       <section class="hero">
@@ -111,7 +111,7 @@ def render_mission_control(csrf_token: str) -> str:
         <p class="lead">Run approved missions, inspect deterministic acceptance evidence, and let an independent verifier detect changes to artifacts, events, or critical metadata.</p>
         <div class="truth">● Development-only trust boundary. Evidence is locally verifiable and deliberately UNANCHORED.</div>
       </section>
-      <section class="stats" aria-label="Stan systemu">
+      <section class="stats" aria-label="System status">
         <div class="stat"><div class="label">Missions</div><div class="value" id="mission-count">—</div></div>
         <div class="stat"><div class="label">Runs</div><div class="value" id="run-count">—</div></div>
         <div class="stat"><div class="label">gVisor</div><div class="value" id="gvisor-status">—</div></div>
@@ -119,10 +119,10 @@ def render_mission_control(csrf_token: str) -> str:
       </section>
 
       <div class="section-head"><div><div class="eyebrow">01 / Start</div><h2>Approved missions</h2></div><div class="section-note">Checked-in manifests only</div></div>
-      <section class="missions" id="missions"><div class="card skeleton">Wczytywanie manifestów…</div></section>
+      <section class="missions" id="missions"><div class="card skeleton">Loading manifests…</div></section>
 
       <div class="section-head"><div><div class="eyebrow">02 / Proof</div><h2>Execution history</h2></div><div class="section-note">Newest first</div></div>
-      <section class="runs" id="runs"><div class="skeleton">Wczytywanie dowodów…</div></section>
+      <section class="runs" id="runs"><div class="skeleton">Loading evidence…</div></section>
       <section class="card evidence" id="evidence"></section>
     </main>
     <footer>The UI is a view of evidence, never the source of truth. Mission Control accepts no arbitrary commands or filesystem paths. <strong>UNANCHORED</strong> means a host administrator could still replace and recompute local evidence; external trust is roadmap work.</footer>
@@ -147,7 +147,7 @@ def render_mission_control(csrf_token: str) -> str:
     }}
 
     function missionCard(mission, gvisorReady, openaiConfigured) {{
-      if (!mission.valid) return `<article class="card"><div class="card-top"><div><div class="path">${{esc(mission.path)}}</div><h3>Nieprawidłowy manifest</h3></div><span class="badge bad">INVALID</span></div><p class="path">${{esc(mission.errors.join(' · '))}}</p></article>`;
+      if (!mission.valid) return `<article class="card"><div class="card-top"><div><div class="path">${{esc(mission.path)}}</div><h3>Invalid manifest</h3></div><span class="badge bad">INVALID</span></div><p class="path">${{esc(mission.errors.join(' · '))}}</p></article>`;
       const needsKey = mission.provider === 'openai' && !openaiConfigured;
       const blocked = (mission.backend === 'gvisor' && !gvisorReady) || needsKey;
       const security = mission.backend === 'gvisor' ? 'sandboxed' : (mission.provider === 'fixture' ? 'fixture · offline' : 'development only');
@@ -179,9 +179,9 @@ def render_mission_control(csrf_token: str) -> str:
         $('#run-count').textContent = data.runs.length;
         $('#gvisor-status').textContent = ready ? 'READY' : 'OFFLINE';
         $('#gvisor-status').style.color = ready ? 'var(--green)' : 'var(--amber)';
-        $('#proof-status').textContent = data.runs[0]?.proof_status || 'BRAK';
+        $('#proof-status').textContent = data.runs[0]?.proof_status || 'NO RUNS YET';
         $('#proof-status').style.color = data.runs[0]?.proof_status === 'LOCAL_VERIFIED' ? 'var(--green)' : 'inherit';
-        $('#system-status').textContent = ready ? 'gVisor gotowy' : 'tryb lokalny · runsc niedostępny';
+        $('#system-status').textContent = ready ? 'gVisor ready' : 'fixture mode · runsc unavailable';
         $('#system-dot').style.background = ready ? 'var(--green)' : 'var(--amber)';
         $('#missions').innerHTML = data.missions.length ? data.missions.map(m => missionCard(m, ready, data.service.openai_configured)).join('') : '<div class="card empty">No manifests in the configured directory.</div>';
         $('#runs').innerHTML = data.runs.length ? data.runs.map(runRow).join('') : '<div class="empty">No runs yet. Start an approved mission above.</div>';
@@ -196,13 +196,13 @@ def render_mission_control(csrf_token: str) -> str:
       if (!runButton && !verifyButton && !detailButton && !tamperButton) return;
       try {{
         if (runButton) {{
-          if (busy) return; busy = true; runButton.disabled = true; runButton.textContent = 'Misja pracuje…';
+          if (busy) return; busy = true; runButton.disabled = true; runButton.textContent = 'Mission running…';
           const body = await api('/api/runs', {{method:'POST', headers:{{'Content-Type':'application/json','X-APR-Token':token}}, body:JSON.stringify({{mission_path:runButton.dataset.run}})}});
-          toast(`Misja ${{body.run.mission_id}}: ${{body.run.proof_status}}`);
+          toast(`Mission ${{body.run.mission_id}}: ${{body.run.proof_status}}`);
         }} else if (verifyButton) {{
           verifyButton.disabled = true;
           const body = await api('/api/verify', {{method:'POST', headers:{{'Content-Type':'application/json','X-APR-Token':token}}, body:JSON.stringify({{run_id:verifyButton.dataset.verify}})}});
-          toast(`Ponowna weryfikacja: ${{body.run.proof_status}}`, body.run.proof_status !== 'LOCAL_VERIFIED');
+          toast(`Reverification: ${{body.run.proof_status}}`, body.run.proof_status !== 'LOCAL_VERIFIED');
         }} else if (detailButton) {{
           const body = await api(`/api/runs/${{encodeURIComponent(detailButton.dataset.detail)}}`);
           const node = $('#evidence');
