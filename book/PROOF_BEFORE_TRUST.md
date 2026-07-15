@@ -1,5 +1,6 @@
 ---
 author: Bartosz Osiński (Osa)
+cover-image: book/cover.svg
 date: July 2026
 description: "A practical and evidence-bounded account of Agent Proof
   Runtime: mission contracts, controlled artifacts, deterministic
@@ -9,6 +10,12 @@ lang: en-US
 subtitle: Engineering Verifiable Execution for Autonomous AI Agents
 title: Proof Before Trust
 ---
+
+<figure>
+<img src="cover.svg" alt="Proof Before Trust — book cover" />
+<figcaption aria-hidden="true">Proof Before Trust — book
+cover</figcaption>
+</figure>
 
 # Proof Before Trust
 
