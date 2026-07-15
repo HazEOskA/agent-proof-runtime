@@ -2,16 +2,24 @@ from __future__ import annotations
 
 import json
 import tempfile
+import os
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path
 
-from agent_proof_runtime.cli import main
+from agent_proof_runtime.cli import _parser, main
 from agent_proof_runtime.validator import verify_bundle
 
 
 class BuildWeekCliTests(unittest.TestCase):
+    def test_mission_control_honors_port_environment_default(self) -> None:
+        from unittest.mock import patch
+
+        with patch.dict(os.environ, {"PORT": "9123"}, clear=True):
+            arguments = _parser().parse_args(["mission-control"])
+        self.assertEqual(arguments.port, 9123)
+
     def test_validation_provider_mission_and_verification_exit_codes(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

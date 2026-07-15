@@ -1,102 +1,83 @@
-# Build Week — Codex Mission Control v1
+# OpenAI Build Week — Agent Proof Runtime
 
-Gałąź zgłoszeniowa: `build-week/codex-mission-control-v1`
+Competition branch: `build-week/codex-mission-control-v1`
 
-## Jednozdaniowy opis
+## Submission sentence
 
-Agent Proof Runtime uruchamia zatwierdzoną misję agenta w świeżym środowisku i
-zostawia rachunek wykonania, który niezależny validator potrafi przeliczyć bez
-zaufania do werdyktu runtime'u.
+Agent Proof Runtime converts autonomous AI work into independently verifiable
+execution evidence: controlled artifacts, deterministic acceptance checks, a hashed
+event chain, a Merkle root, and a self-contained Proof Bundle.
 
-## Przepływ demonstracyjny
+## Why it matters
 
-```text
-MissionSpec
-    │
-    ▼
-Mission Control ──► istniejący Mission Runner ──► local-demo / Docker + gVisor
-                                              │
-                                              ▼
-                                   artefakty + event hash chain
-                                              │
-                                              ▼
-                                  Proof Bundle + Merkle root
-                                              │
-                                              ▼
-                                    niezależny Validator
-```
+Agent observability says what a system logged. APR demonstrates whether the declared
+artifact, acceptance evidence, and execution history still match what was recorded.
+It makes tampering visible without asking the model or UI to judge itself.
 
-Mission Control jest adapterem operatora. Nie ma własnego runnera, formatu dowodu
-ani alternatywnego validatora.
-
-## Demo w 90 sekund
+## Judge path
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e .
+apr run examples/build-week-mission.json --provider fixture --output .runs/judge-demo
+apr verify .runs/judge-demo/proof-bundle.json
 apr mission-control
 ```
 
-1. Otwórz `http://127.0.0.1:8080`.
-2. Uruchom `builtin-demo`.
-3. Zobacz statusy `PASSED`, `LOCAL_VERIFIED` i `UNANCHORED`.
-4. Otwórz raport i pokaż artefakt oraz łańcuch zdarzeń.
-5. Zmień zawartość artefaktu w nowym katalogu `.runs/.../artifact/hello.txt`.
-6. Kliknij `Sprawdź` — validator powinien zwrócić `FAILED`.
+Open <http://127.0.0.1:8080>, select the verified run, inspect its evidence, and run
+artifact, event, and metadata Tamper Lab cases. Each copy must fail while the
+original remains verified.
 
-To pokazuje najważniejszą różnicę między zwykłym logiem a dowodem: zmiana wyniku po
-fakcie zostaje wykryta.
+## Fixture versus live
 
-## Stan wykonania
+Fixture mode is the primary reproducible judging path. It has no key, network, or
+third-party dependency but traverses the same provider result, runtime policy,
+acceptance, event, Proof Bundle, verifier, report, Mission Control, and Tamper Lab
+contracts as live mode.
 
-### Ukończone i uruchomione
+The optional official OpenAI provider uses Responses API Structured Outputs and a
+configurable `gpt-5.6` default. Current status is **IMPLEMENTED BUT NOT
+LIVE-VALIDATED** because this environment had no `OPENAI_API_KEY` and no live request
+was attempted. Mocked tests are not presented as live validation.
 
-- pionowy przebieg: misja → workspace → artefakt → test → bundle → validator,
-- ścisły MissionSpec v0.2,
-- JCS-safe profil kanonikalizacji dla obsługiwanych typów,
-- SHA-256 event chain i Merkle root według algorytmu RFC 6962,
-- niezależna weryfikacja bundle i plików artefaktów,
-- statyczny raport operatora,
-- fail-closed adapter Docker + gVisor,
-- Mission Control v1 z historią, uruchamianiem i ponowną weryfikacją,
-- testy manipulacji, traversal, symlinków, limitów i niedostępnego backendu.
+## Demonstrated claims
 
-### Zaimplementowane, ale wymagające bramki labowej
+- Strict versioned Mission Manifest and Proof Bundle extension.
+- Deterministic fixture and same-shape optional OpenAI provider.
+- Model output constrained to artifact proposals; no arbitrary host commands.
+- Runtime-enforced relative paths, media types, file counts, and byte limits.
+- Six deterministic check types with independent reproduction.
+- SHA-256 event chain, RFC 6962-style Merkle root, and whole-bundle hash.
+- Backward-compatible v0.1/v0.2 verification.
+- Mission Control evidence view and three disposable tamper cases.
+- HTTP path/Host/CSRF/CSP/symlink protections and `/health`.
+- No-secret persistence tests and absent-key fail-closed behavior.
 
-- realny run obrazu przez `runsc` na hoście Linux,
-- fizyczne testy sieci, timeoutu, forka i wyczerpania zasobów pod gVisorem,
-- zastąpienie placeholdera digestu w przykładzie prawdziwym `RepoDigest`.
+## Honest limitations
 
-Kod nie spada do `runc`, gdy `runsc` jest nieobecny. Brak hosta labowego oznacza
-`OFFLINE`, a nie udawany sukces.
+- The local proof is unsigned and externally unanchored.
+- The controlled-artifact runtime is `development-only`, not hostile-code isolation.
+- A fully privileged host attacker can replace and recompute local evidence.
+- Mission Control is a single-operator demo without multi-user authentication.
+- Hosted run storage may be ephemeral.
+- Docker and Linux `runsc` were not available for real validation here.
+- HSM, TEE, TPM, append-only anchoring, inclusion proof, and in-toto are roadmap.
 
-### Roadmapa, nie claim zgłoszenia
-
-- zewnętrzny append-only anchor service,
-- podpis kluczem poza hostem runtime lub PKCS#11/HSM,
-- inclusion proof i status `ANCHORED`,
-- TEE, TPM/measured boot oraz profil in-toto.
-
-## Komendy akceptacyjne
+## Acceptance commands
 
 ```bash
+python -m pip install -e .
 PYTHONPATH=src python -m unittest discover -s tests -v
-PYTHONPATH=src python -m agent_proof_runtime mission validate missions/demo.json
-PYTHONPATH=src python -m agent_proof_runtime run missions/demo.json --output /tmp/apr-build-week
-PYTHONPATH=src python -m agent_proof_runtime verify /tmp/apr-build-week/proof-bundle.json
-PYTHONPATH=src python -m agent_proof_runtime doctor --backend gvisor
+apr demo --output /tmp/apr-legacy-demo
+apr verify /tmp/apr-legacy-demo/proof-bundle.json
+apr run examples/build-week-mission.json --provider fixture --output /tmp/apr-build-week
+apr verify /tmp/apr-build-week/proof-bundle.json
+apr tamper-lab /tmp/apr-build-week/proof-bundle.json --case artifact
+apr tamper-lab /tmp/apr-build-week/proof-bundle.json --case event
+apr tamper-lab /tmp/apr-build-week/proof-bundle.json --case metadata
+apr doctor --backend gvisor
 ```
 
-Ostatnia komenda ma zwrócić błąd na maszynie bez Dockera i `runsc`. To oczekiwane
-zachowanie fail-closed.
-
-## Granica bezpieczeństwa panelu
-
-- domyślny bind: `127.0.0.1`,
-- operacje POST wymagają losowego tokenu osadzonego w stronie z tego samego originu,
-- tylko manifesty z kontrolowanego katalogu mogą zostać uruchomione,
-- publiczne pliki runu są ograniczone do raportu, Proof Bundle i `artifact/`,
-- symlinki, `..`, ścieżki absolutne i niekanoniczne są odrzucane,
-- panel nie jest wieloużytkownikowym systemem z logowaniem i nie powinien być
-  wystawiany publicznie.
+The last command is expected to report unavailable on a machine without Docker and
+registered `runsc`; there is no fallback to `runc`.
