@@ -37,14 +37,18 @@ acceptance, event, Proof Bundle, verifier, report, Mission Control, and Tamper L
 contracts as live mode.
 
 The optional official OpenAI provider uses Responses API Structured Outputs and a
-configurable `gpt-5.6` default. Current status is **IMPLEMENTED BUT NOT
-LIVE-VALIDATED** because this environment had no `OPENAI_API_KEY` and no live request
-was attempted. Mocked tests are not presented as live validation.
+configurable `gpt-5.6` default. The provider is **LIVE-VALIDATED**: on 2026-07-15 a
+controlled local run completed with mission `PASSED`, proof `LOCAL_VERIFIED`, anchor
+`UNANCHORED`, five independently replayed events, and no API key found in persisted
+run files. The key existed only in the current process environment and was removed
+after the run. The live result validates the provider integration, not external
+anchoring or non-repudiation.
 
 ## Demonstrated claims
 
 - Strict versioned Mission Manifest and Proof Bundle extension.
 - Deterministic fixture and same-shape optional OpenAI provider.
+- Controlled live GPT-5.6 provider validation with no secret persistence.
 - Model output constrained to artifact proposals; no arbitrary host commands.
 - Runtime-enforced relative paths, media types, file counts, and byte limits.
 - Six deterministic check types with independent reproduction.
@@ -52,6 +56,7 @@ was attempted. Mocked tests are not presented as live validation.
 - Backward-compatible v0.1/v0.2 verification.
 - Mission Control evidence view and three disposable tamper cases.
 - HTTP path/Host/CSRF/CSP/symlink protections and `/health`.
+- Docker image and full containerized judge path validated as non-root and healthy.
 - No-secret persistence tests and absent-key fail-closed behavior.
 
 ## Honest limitations
@@ -61,7 +66,8 @@ was attempted. Mocked tests are not presented as live validation.
 - A fully privileged host attacker can replace and recompute local evidence.
 - Mission Control is a single-operator demo without multi-user authentication.
 - Hosted run storage may be ephemeral.
-- Docker and Linux `runsc` were not available for real validation here.
+- The Docker image and Mission Control path were locally validated, but real gVisor
+  execution remains unvalidated because `runsc` was not installed.
 - HSM, TEE, TPM, append-only anchoring, inclusion proof, and in-toto are roadmap.
 
 ## Acceptance commands
