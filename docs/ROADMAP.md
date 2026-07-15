@@ -17,6 +17,18 @@
 - Proof Bundle v0.2 z hashem MissionSpec,
 - zgodność validatora wstecz z v0.1.
 
+## Build Week — Mission Control v1
+
+- lokalny panel operatora nad istniejącym Mission Runnerem,
+- wykrywanie i ścisła walidacja manifestów,
+- kontrolowany start misji oraz historia runów,
+- ponowna niezależna weryfikacja z panelu,
+- bezpieczne udostępnianie wyłącznie raportu, bundle i zadeklarowanych artefaktów,
+- blokada zdalnego bindu bez jawnej zgody operatora.
+
+Mission Control nie zmienia wersji Proof Bundle ani kontraktu MissionSpec. Jest
+warstwą demonstracyjną nad ukończonym rdzeniem v0.2.
+
 ## v0.3 — lab i twarde testy izolacji
 
 - uruchomienie `runsc` na osobnym hoście labowym,

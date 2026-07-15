@@ -303,7 +303,24 @@ def parse_mission(
     )
     if check_source and workload.source:
         source_dir = spec.source_dir
-        if source_dir is None or not source_dir.is_dir():
+        manifest_root = (
+            resolved_manifest.parent if resolved_manifest else Path.cwd().resolve()
+        )
+        unresolved_source = manifest_root.joinpath(
+            *PurePosixPath(workload.source).parts
+        )
+        current = manifest_root
+        source_has_symlink = False
+        for part in PurePosixPath(workload.source).parts:
+            current = current / part
+            if current.is_symlink():
+                source_has_symlink = True
+                break
+        if source_has_symlink:
+            errors.append("workload.source cannot contain symbolic links")
+        elif source_dir is None or not source_dir.is_relative_to(manifest_root):
+            errors.append("workload.source must stay inside the manifest directory")
+        elif not unresolved_source.is_dir():
             errors.append(f"workload.source directory does not exist: {workload.source}")
 
     if errors:

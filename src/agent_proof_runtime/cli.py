@@ -13,6 +13,7 @@ from typing import Sequence
 from . import __version__
 from .gvisor import DockerGVisorSandbox
 from .mission import MissionValidationError, load_mission
+from .mission_control import MissionControlConfig, MissionControlError, serve
 from .runtime import RunDirectoryExists, run_demo, run_mission
 from .validator import verify_bundle
 
@@ -61,6 +62,19 @@ def _parser() -> argparse.ArgumentParser:
     doctor.add_argument("--backend", choices=["gvisor"], default="gvisor")
     doctor.add_argument("--json", action="store_true")
 
+    control = commands.add_parser(
+        "mission-control", help="start the local operator dashboard"
+    )
+    control.add_argument("--host", default="127.0.0.1")
+    control.add_argument("--port", type=int, default=8080)
+    control.add_argument("--missions-dir", type=Path, default=Path("missions"))
+    control.add_argument("--runs-dir", type=Path, default=Path(".runs"))
+    control.add_argument(
+        "--allow-remote",
+        action="store_true",
+        help="explicitly allow binding outside loopback (no authentication is provided)",
+    )
+
     commands.add_parser("explain", help="explain the trust boundary in plain language")
     return parser
 
@@ -86,6 +100,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
     if arguments.command == "explain":
         _print_explanation()
+        return 0
+
+    if arguments.command == "mission-control":
+        try:
+            serve(
+                MissionControlConfig(
+                    missions_dir=arguments.missions_dir,
+                    runs_dir=arguments.runs_dir,
+                    host=arguments.host,
+                    port=arguments.port,
+                    allow_remote=arguments.allow_remote,
+                )
+            )
+        except (MissionControlError, OSError) as error:
+            print(f"ERROR: mission control failed: {error}", file=sys.stderr)
+            return 2
         return 0
 
     if arguments.command == "doctor":

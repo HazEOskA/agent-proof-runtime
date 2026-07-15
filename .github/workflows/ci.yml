@@ -24,3 +24,4 @@ jobs:
       - run: apr mission validate missions/demo.json
       - run: apr run missions/demo.json --output /tmp/apr-ci-run
       - run: apr verify /tmp/apr-ci-run/proof-bundle.json
+      - run: apr mission-control --help

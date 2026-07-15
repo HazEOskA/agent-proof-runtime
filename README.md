@@ -23,6 +23,8 @@ jeden agent -> świeży workspace -> artefakt -> test -> Proof Bundle -> niezale
 - ścisły `MissionSpec v0.2`, dzięki któremu workload nie jest związany z APR,
 - backend gVisor, który działa fail-closed i nigdy nie spada po cichu do `runc`,
 - `apr doctor`, który sprawdza, czy Docker naprawdę zarejestrował runtime `runsc`.
+- lokalny **Mission Control**, który uruchamia istniejące manifesty, pokazuje historię
+  runów i ponownie odpala niezależny validator bez dodawania drugiej ścieżki wykonania.
 
 ## Ważna granica bezpieczeństwa
 
@@ -50,6 +52,29 @@ apr verify .runs/first-run/proof-bundle.json
 ```
 
 Otwórz `.runs/first-run/report.html`, aby zobaczyć raport operatora.
+
+## Mission Control
+
+Panel demonstracyjny działa bez zależności frontendowych i korzysta dokładnie z tego
+samego `run_mission()` oraz `verify_bundle()` co CLI:
+
+```bash
+apr mission-control
+```
+
+Następnie otwórz `http://127.0.0.1:8080`. Panel:
+
+- wykrywa wyłącznie manifesty JSON z katalogu `missions`,
+- nie przyjmuje dowolnej komendy ani dowolnej ścieżki,
+- uruchamia jedną misję naraz,
+- pokazuje dostępność `runsc`, status misji, dowodu i kotwicy,
+- pozwala otworzyć raport, Proof Bundle i zadeklarowane artefakty,
+- wymaga losowego tokenu dla operacji zmieniających stan i blokuje path traversal
+  oraz dowiązania symboliczne.
+
+Domyślnie serwer nasłuchuje tylko na loopbacku. Zdalny bind wymaga jawnego
+`--allow-remote`; panel nie zapewnia uwierzytelniania użytkowników, dlatego ta opcja
+jest przeznaczona wyłącznie do kontrolowanego środowiska demonstracyjnego.
 
 Można też uruchomić bez instalowania skryptu CLI:
 
@@ -113,6 +138,7 @@ jest celowym placeholderem: przed uruchomieniem trzeba zastąpić go prawdziwym
   fail-closed backend Docker + gVisor.
 - [Roadmap](docs/ROADMAP.md) — droga od lokalnego PoC do realnej izolacji i
   zewnętrznego zaufania.
+- [Build Week](docs/BUILD_WEEK.md) — stan zgłoszenia, demonstracja i uczciwe granice.
 
 ## Statusy walidatora
 

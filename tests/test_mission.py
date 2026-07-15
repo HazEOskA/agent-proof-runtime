@@ -114,6 +114,32 @@ class MissionSpecTests(unittest.TestCase):
                 load_mission(path)
             self.assertTrue(any("does not exist" in error for error in raised.exception.errors))
 
+    def test_source_symlink_cannot_escape_manifest_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            outside = root / "outside"
+            outside.mkdir()
+            manifest_root = root / "manifests"
+            manifest_root.mkdir()
+            (manifest_root / "linked-workload").symlink_to(
+                outside, target_is_directory=True
+            )
+            mission = _valid_demo()
+            mission["backend"] = "gvisor"
+            mission["workload"] = {
+                "kind": "container-command",
+                "image": "python@sha256:" + ("0" * 64),
+                "command": ["python", "agent.py"],
+                "source": "linked-workload",
+            }
+            path = manifest_root / "mission.json"
+            path.write_text(json.dumps(mission), encoding="utf-8")
+            with self.assertRaises(MissionValidationError) as raised:
+                load_mission(path)
+            self.assertTrue(
+                any("symbolic links" in error for error in raised.exception.errors)
+            )
+
     def test_duplicate_json_key_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "mission.json"
