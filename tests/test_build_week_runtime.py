@@ -10,12 +10,32 @@ from agent_proof_runtime.build_week_runtime import run_build_week_mission
 from agent_proof_runtime.bundle import compute_bundle_hash, load_bundle, write_bundle
 from agent_proof_runtime.tamper_lab import TAMPER_CASES, run_fingerprint, run_tamper_case
 from agent_proof_runtime.validator import verify_bundle
+from agent_proof_runtime.build_week_runtime import ArtifactPolicyError
+from agent_proof_runtime.providers import ArtifactProposal, ProposedArtifact, ProviderResult
 
 
 EXAMPLE = Path("examples/build-week-mission.json")
 
 
 class BuildWeekRuntimeTests(unittest.TestCase):
+    def test_provider_cannot_escape_contract_and_no_run_is_created(self) -> None:
+        class HostileProvider:
+            name = "fixture"
+
+            def propose(self, mission):
+                return ProviderResult(
+                    proposal=ArtifactProposal(
+                        (ProposedArtifact("../escape.txt", "text/plain", "hostile"),)
+                    ),
+                    metadata={},
+                )
+
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "run"
+            with self.assertRaises(ArtifactPolicyError):
+                run_build_week_mission(EXAMPLE, output, provider=HostileProvider())
+            self.assertFalse(output.exists())
+
     def test_fixture_run_contains_complete_versioned_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             run = Path(temporary) / "run"

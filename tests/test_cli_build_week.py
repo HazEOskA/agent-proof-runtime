@@ -8,6 +8,7 @@ from io import StringIO
 from pathlib import Path
 
 from agent_proof_runtime.cli import main
+from agent_proof_runtime.validator import verify_bundle
 
 
 class BuildWeekCliTests(unittest.TestCase):
@@ -35,6 +36,9 @@ class BuildWeekCliTests(unittest.TestCase):
                     main(["run", str(failed), "--output", str(root / "failed-run")]),
                     4,
                 )
+            faithfully_failed = verify_bundle(root / "failed-run" / "proof-bundle.json")
+            self.assertEqual(faithfully_failed.status, "LOCAL_VERIFIED")
+            self.assertEqual(faithfully_failed.mission_status, "FAILED")
 
             artifact = root / "failed-run" / "artifact" / "site" / "index.html"
             artifact.write_text("tampered", encoding="utf-8")

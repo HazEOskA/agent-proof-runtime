@@ -172,7 +172,9 @@ def run_build_week_mission(
         details={"artifact_count": len(artifacts), "evaluator": "deterministic-v1"},
     )
     events = chain.events
-    claimed_status = "LOCAL_VERIFIED" if mission_status == "PASSED" else "FAILED"
+    # This is only a runtime claim. The independent verifier recomputes validity;
+    # a faithfully recorded failed mission can still have a valid local proof.
+    claimed_status = "LOCAL_VERIFIED"
     bundle: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION_BUILD_WEEK,
         "mission": {"manifest": spec.to_dict(), "manifest_hash": spec.manifest_hash},

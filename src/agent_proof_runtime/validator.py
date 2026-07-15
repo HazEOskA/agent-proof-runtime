@@ -1019,9 +1019,8 @@ def _verify_build_week_loaded(
     verification = bundle.get("verification")
     errors.extend(_key_errors("verification", verification, VERIFICATION_KEYS_BUILD_WEEK))
     if isinstance(verification, dict):
-        expected_claim = "LOCAL_VERIFIED" if mission_status == "PASSED" else "FAILED"
-        if verification.get("claimed_status") != expected_claim:
-            errors.append("verification.claimed_status contradicts acceptance evidence")
+        if verification.get("claimed_status") != "LOCAL_VERIFIED":
+            errors.append("verification.claimed_status must be LOCAL_VERIFIED")
 
     integrity = bundle.get("integrity")
     errors.extend(_key_errors("integrity", integrity, INTEGRITY_KEYS))
