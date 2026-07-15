@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import mimetypes
+import os
 import re
 import secrets
 import threading
@@ -23,8 +24,12 @@ from urllib.parse import unquote, urlsplit
 from . import __version__
 from .bundle import BundleFormatError, load_bundle
 from .gvisor import BackendUnavailableError, DockerGVisorSandbox
-from .mission import MissionValidationError, load_mission
+from .mission import MissionSpec, MissionValidationError
+from .mission_loader import load_declared_mission
+from .mission_v1 import BuildWeekMission
 from .mission_control_ui import render_mission_control
+from .build_week_runtime import ArtifactPolicyError, run_build_week_mission
+from .providers import ProviderError
 from .runtime import RunDirectoryExists, run_mission
 from .validator import verify_bundle
 
@@ -156,7 +161,7 @@ def discover_missions(missions_root: Path) -> list[dict[str, Any]]:
             continue
         relative = candidate.relative_to(root).as_posix()
         try:
-            spec = load_mission(candidate)
+            spec = load_declared_mission(candidate)
         except MissionValidationError as error:
             missions.append(
                 {
@@ -166,21 +171,46 @@ def discover_missions(missions_root: Path) -> list[dict[str, Any]]:
                 }
             )
             continue
-        missions.append(
-            {
-                "path": relative,
-                "valid": True,
-                "mission_id": spec.mission_id,
-                "backend": spec.backend,
-                "workload": spec.workload.kind,
-                "timeout_seconds": spec.limits.timeout_seconds,
-                "memory_mb": spec.limits.memory_mb,
-                "network_mode": spec.network_mode,
-                "artifact_required": spec.artifacts.required,
-                "spec_hash": spec.spec_hash,
-                "errors": [],
-            }
-        )
+        if isinstance(spec, BuildWeekMission):
+            missions.append(
+                {
+                    "path": relative,
+                    "valid": True,
+                    "schema_version": "apr.mission.v1",
+                    "mission_id": spec.mission_id,
+                    "title": spec.title,
+                    "provider": spec.provider,
+                    "model": spec.model,
+                    "backend": "controlled-artifact-runtime",
+                    "workload": "artifact-proposal",
+                    "timeout_seconds": spec.limits.provider_timeout_seconds,
+                    "memory_mb": None,
+                    "network_mode": "fixture-offline" if spec.provider == "fixture" else "provider-api-only",
+                    "artifact_required": any(item.required for item in spec.artifact_contract.artifacts),
+                    "spec_hash": spec.manifest_hash,
+                    "errors": [],
+                }
+            )
+        else:
+            missions.append(
+                {
+                    "path": relative,
+                    "valid": True,
+                    "schema_version": "apr.mission.v0.2",
+                    "mission_id": spec.mission_id,
+                    "title": spec.mission_id,
+                    "provider": "sandbox",
+                    "model": None,
+                    "backend": spec.backend,
+                    "workload": spec.workload.kind,
+                    "timeout_seconds": spec.limits.timeout_seconds,
+                    "memory_mb": spec.limits.memory_mb,
+                    "network_mode": spec.network_mode,
+                    "artifact_required": spec.artifacts.required,
+                    "spec_hash": spec.spec_hash,
+                    "errors": [],
+                }
+            )
     return missions
 
 
@@ -220,13 +250,15 @@ def _read_run(run_dir: Path) -> dict[str, Any]:
 
     mission = bundle.get("mission")
     mission_spec_value = mission.get("spec") if isinstance(mission, dict) else None
+    mission_manifest_value = mission.get("manifest") if isinstance(mission, dict) else None
     mission_spec = mission_spec_value if isinstance(mission_spec_value, dict) else {}
+    mission_manifest = mission_manifest_value if isinstance(mission_manifest_value, dict) else {}
     run_value = bundle.get("run")
     run = run_value if isinstance(run_value, dict) else {}
     report_path = run_dir / "report.html"
     return {
         "run_id": run_dir.name,
-        "mission_id": mission_spec.get("mission_id", "legacy-demo"),
+        "mission_id": mission_manifest.get("mission_id", mission_spec.get("mission_id", "legacy-demo")),
         "started_at": run.get("started_at"),
         "duration_ms": run.get("duration_ms"),
         "mission_status": verification.mission_status,
@@ -235,6 +267,11 @@ def _read_run(run_dir: Path) -> dict[str, Any]:
         "event_count": verification.event_count,
         "security_level": run.get("security_level", "unknown"),
         "backend": run.get("sandbox_backend", "unknown"),
+        "provider": (
+            bundle.get("provider", {}).get("provider", "sandbox")
+            if isinstance(bundle.get("provider"), dict)
+            else "sandbox"
+        ),
         "report_url": f"/runs/{run_dir.name}/report.html" if report_path.is_file() else None,
         "bundle_url": f"/runs/{run_dir.name}/proof-bundle.json",
         "errors": list(verification.errors),
@@ -281,6 +318,7 @@ class MissionControl:
                 "name": "Agent Proof Runtime Mission Control",
                 "version": __version__,
                 "trust_boundary": "local-operator",
+                "openai_configured": bool(os.environ.get("OPENAI_API_KEY")),
             },
             "doctor": _doctor_summary(),
             "missions": discover_missions(self.config.missions_dir),
@@ -296,17 +334,24 @@ class MissionControl:
             manifest = _relative_file(
                 self.config.missions_dir, mission_path, suffix=".json"
             )
-            spec = load_mission(manifest)
+            spec = load_declared_mission(manifest)
             stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
             run_name = f"{stamp}-{spec.mission_id}-{uuid.uuid4().hex[:8]}"
             self.config.runs_dir.mkdir(parents=True, exist_ok=True)
-            result = run_mission(spec, self.config.runs_dir / run_name)
+            if isinstance(spec, BuildWeekMission):
+                result = run_build_week_mission(spec, self.config.runs_dir / run_name)
+            else:
+                result = run_mission(spec, self.config.runs_dir / run_name)
             return _read_run(result.output_dir)
         except MissionValidationError as error:
             raise MissionControlError("; ".join(error.errors)) from error
         except RunDirectoryExists as error:
             raise MissionControlError(str(error), HTTPStatus.CONFLICT) from error
         except BackendUnavailableError as error:
+            raise MissionControlError(
+                str(error), HTTPStatus.SERVICE_UNAVAILABLE
+            ) from error
+        except (ProviderError, ArtifactPolicyError) as error:
             raise MissionControlError(
                 str(error), HTTPStatus.SERVICE_UNAVAILABLE
             ) from error

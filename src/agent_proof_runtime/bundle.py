@@ -11,6 +11,7 @@ from .canonical import hash_json
 
 SCHEMA_VERSION_V1 = "apr.proof-bundle.v0.1"
 SCHEMA_VERSION_V2 = "apr.proof-bundle.v0.2"
+SCHEMA_VERSION_BUILD_WEEK = "apr.proof-bundle.v1"
 SCHEMA_VERSION = SCHEMA_VERSION_V1
 MAX_BUNDLE_BYTES = 10 * 1024 * 1024
 

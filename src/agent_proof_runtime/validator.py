@@ -15,6 +15,7 @@ from typing import Any
 from .bundle import (
     BundleFormatError,
     SCHEMA_VERSION,
+    SCHEMA_VERSION_BUILD_WEEK,
     SCHEMA_VERSION_V2,
     compute_bundle_hash,
     load_bundle,
@@ -29,6 +30,8 @@ from .canonical import (
 from .chain import verify_event_chain
 from .merkle import merkle_root_from_step_hashes
 from .mission import MissionSpec, MissionValidationError, parse_mission
+from .mission_v1 import BuildWeekMission, parse_build_week_mission
+from .acceptance import evaluate_acceptance
 
 TOP_LEVEL_KEYS = frozenset(
     {"schema_version", "run", "events", "artifacts", "validation", "integrity"}
@@ -87,6 +90,38 @@ EXPECTED_CHECK_NAMES_V2 = (
     "backend_protocol_valid",
     "artifact_requirement_met",
 )
+TOP_LEVEL_KEYS_BUILD_WEEK = frozenset(
+    {
+        "schema_version",
+        "mission",
+        "provider",
+        "run",
+        "events",
+        "artifacts",
+        "acceptance",
+        "verification",
+        "integrity",
+    }
+)
+MISSION_KEYS_BUILD_WEEK = frozenset({"manifest", "manifest_hash"})
+PROVIDER_KEYS_BUILD_WEEK = frozenset(
+    {
+        "provider",
+        "requested_model",
+        "resolved_model",
+        "response_id",
+        "token_usage",
+        "latency_ms",
+        "input_hash",
+        "response_hash",
+        "implementation_status",
+    }
+)
+TOKEN_USAGE_KEYS = frozenset({"input_tokens", "output_tokens", "total_tokens"})
+ARTIFACT_KEYS_BUILD_WEEK = frozenset({"path", "media_type", "size", "sha256"})
+ACCEPTANCE_KEYS = frozenset({"status", "checks"})
+ACCEPTANCE_CHECK_KEYS = frozenset({"id", "type", "passed", "expected", "actual"})
+VERIFICATION_KEYS_BUILD_WEEK = frozenset({"claimed_status"})
 
 
 @dataclass(frozen=True)
@@ -738,6 +773,336 @@ def _verify_v02_loaded(
     )
 
 
+def _validate_build_week_artifacts(
+    artifacts: Any, *, run_root: Path, mission: BuildWeekMission | None
+) -> tuple[list[str], list[dict[str, Any]]]:
+    if not isinstance(artifacts, list):
+        return ["artifacts must be an array"], []
+    errors: list[str] = []
+    valid: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    root = run_root.resolve()
+    declared = (
+        {"artifact/" + item.path: item for item in mission.artifact_contract.artifacts}
+        if mission
+        else {}
+    )
+    for index, artifact in enumerate(artifacts):
+        label = f"artifact[{index}]"
+        shape_errors = _key_errors(label, artifact, ARTIFACT_KEYS_BUILD_WEEK)
+        errors.extend(shape_errors)
+        if shape_errors:
+            continue
+        raw_path = artifact["path"]
+        path = PurePosixPath(raw_path) if isinstance(raw_path, str) else PurePosixPath("")
+        if (
+            not isinstance(raw_path, str)
+            or not raw_path.startswith("artifact/")
+            or path.is_absolute()
+            or ".." in path.parts
+            or "\\" in raw_path
+            or path.as_posix() != raw_path
+        ):
+            errors.append(f"{label} path is not a canonical artifact path")
+            continue
+        if raw_path in seen:
+            errors.append(f"{label} duplicates artifact path {raw_path}")
+            continue
+        seen.add(raw_path)
+        contract = declared.get(raw_path)
+        if mission and contract is None:
+            errors.append(f"{label} path is outside the artifact contract")
+        if contract and artifact["media_type"] != contract.media_type:
+            errors.append(f"{label} media_type does not match the artifact contract")
+        if not isinstance(artifact["media_type"], str):
+            errors.append(f"{label} media_type must be a string")
+        target = root.joinpath(*path.parts)
+        try:
+            resolved = target.resolve(strict=True)
+        except (OSError, ValueError):
+            errors.append(f"{label} file is missing: {raw_path}")
+            continue
+        if not resolved.is_relative_to(root) or target.is_symlink() or not target.is_file():
+            errors.append(f"{label} is not a regular in-run file")
+            continue
+        size = artifact["size"]
+        if not isinstance(size, int) or isinstance(size, bool) or size < 0:
+            errors.append(f"{label} size must be a non-negative integer")
+            continue
+        if target.stat().st_size != size:
+            errors.append(f"{label} size mismatch")
+        if contract and size > contract.max_bytes:
+            errors.append(f"{label} exceeds contract max_bytes")
+        try:
+            parse_sha256_digest(artifact["sha256"])
+        except ValueError as error:
+            errors.append(f"{label} has an invalid digest: {error}")
+            continue
+        if _hash_file(target) != artifact["sha256"]:
+            errors.append(f"{label} sha256 mismatch")
+        valid.append(artifact)
+
+    artifact_root = run_root / "artifact"
+    actual_paths: set[str] = set()
+    if artifact_root.is_symlink() or not artifact_root.is_dir():
+        errors.append("artifact directory is missing or is a symbolic link")
+    else:
+        for candidate in artifact_root.rglob("*"):
+            relative = candidate.relative_to(run_root).as_posix()
+            if candidate.is_symlink():
+                errors.append(f"artifact tree contains symbolic link: {relative}")
+            elif candidate.is_file():
+                actual_paths.add(relative)
+        if actual_paths != seen:
+            errors.append("artifact manifest does not exactly match materialized files")
+    if mission:
+        required = {"artifact/" + item.path for item in mission.artifact_contract.artifacts if item.required}
+        missing = sorted(required - seen)
+        if missing:
+            errors.append("required artifacts are missing: " + ", ".join(missing))
+        if len(valid) > mission.artifact_contract.max_files:
+            errors.append("artifacts exceed contract max_files")
+        if sum(item.get("size", 0) for item in valid) > mission.artifact_contract.max_total_bytes:
+            errors.append("artifacts exceed contract max_total_bytes")
+    return errors, valid
+
+
+def _verify_build_week_loaded(
+    bundle: dict[str, Any], *, bundle_path: Path
+) -> VerificationResult:
+    errors = _key_errors("bundle", bundle, TOP_LEVEL_KEYS_BUILD_WEEK)
+    if bundle.get("schema_version") != SCHEMA_VERSION_BUILD_WEEK:
+        errors.append(f"unsupported schema_version; expected {SCHEMA_VERSION_BUILD_WEEK}")
+
+    mission_value = bundle.get("mission")
+    errors.extend(_key_errors("mission", mission_value, MISSION_KEYS_BUILD_WEEK))
+    mission: BuildWeekMission | None = None
+    if isinstance(mission_value, dict):
+        try:
+            mission = parse_build_week_mission(mission_value.get("manifest"))
+        except MissionValidationError as error:
+            errors.extend(f"mission.manifest: {item}" for item in error.errors)
+        try:
+            parse_sha256_digest(mission_value.get("manifest_hash"))
+        except ValueError as error:
+            errors.append(f"mission.manifest_hash is invalid: {error}")
+        if mission and mission_value.get("manifest_hash") != mission.manifest_hash:
+            errors.append("mission.manifest_hash mismatch")
+
+    provider = bundle.get("provider")
+    errors.extend(_key_errors("provider", provider, PROVIDER_KEYS_BUILD_WEEK))
+    if isinstance(provider, dict):
+        provider_name = provider.get("provider")
+        if provider_name not in {"fixture", "openai"}:
+            errors.append("provider.provider must be fixture or openai")
+        if mission and provider_name != mission.provider and not (
+            provider_name in {"fixture", "openai"}
+        ):
+            errors.append("provider selection is invalid")
+        for field in ("requested_model", "resolved_model", "implementation_status"):
+            if not isinstance(provider.get(field), str) or not provider.get(field):
+                errors.append(f"provider.{field} must be a non-empty string")
+        response_id = provider.get("response_id")
+        if response_id is not None and (not isinstance(response_id, str) or not response_id):
+            errors.append("provider.response_id must be null or a non-empty string")
+        usage = provider.get("token_usage")
+        errors.extend(_key_errors("provider.token_usage", usage, TOKEN_USAGE_KEYS))
+        if isinstance(usage, dict):
+            for field in TOKEN_USAGE_KEYS:
+                value = usage.get(field)
+                if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                    errors.append(f"provider.token_usage.{field} must be a non-negative integer")
+        latency = provider.get("latency_ms")
+        if not isinstance(latency, int) or isinstance(latency, bool) or latency < 0:
+            errors.append("provider.latency_ms must be a non-negative integer")
+        for field in ("input_hash", "response_hash"):
+            try:
+                parse_sha256_digest(provider.get(field))
+            except ValueError as error:
+                errors.append(f"provider.{field} is invalid: {error}")
+        if mission:
+            if provider.get("input_hash") != hash_json(mission.provider_input()):
+                errors.append("provider.input_hash mismatch")
+            if provider_name == "fixture":
+                if provider.get("resolved_model") != "fixture-v1":
+                    errors.append("fixture resolved_model must be fixture-v1")
+                if provider.get("response_id") is not None:
+                    errors.append("fixture response_id must be null")
+                if provider.get("implementation_status") != "DETERMINISTIC_FIXTURE":
+                    errors.append("fixture implementation_status mismatch")
+            elif provider_name == "openai" and provider.get("implementation_status") != (
+                "IMPLEMENTED BUT NOT LIVE-VALIDATED"
+            ):
+                errors.append("OpenAI implementation_status mismatch")
+
+    run = bundle.get("run")
+    errors.extend(_key_errors("run", run, RUN_KEYS))
+    if isinstance(run, dict):
+        for field in ("run_id", "sandbox_backend", "security_level", "network_policy"):
+            if not isinstance(run.get(field), str) or not run.get(field):
+                errors.append(f"run.{field} must be a non-empty string")
+        try:
+            parsed = uuid.UUID(str(run.get("run_id")))
+            if parsed.version != 4 or str(parsed) != run.get("run_id"):
+                raise ValueError
+        except ValueError:
+            errors.append("run.run_id must be a canonical UUIDv4")
+        for field in ("started_at", "finished_at"):
+            if not _valid_rfc3339(run.get(field)):
+                errors.append(f"run.{field} must be an RFC 3339 timestamp")
+        duration = run.get("duration_ms")
+        if not isinstance(duration, int) or isinstance(duration, bool) or duration < 0:
+            errors.append("run.duration_ms must be a non-negative integer")
+        if run.get("sandbox_backend") != "controlled-artifact-runtime":
+            errors.append("run.sandbox_backend must be controlled-artifact-runtime")
+        if run.get("security_level") != "development-only":
+            errors.append("run.security_level must be development-only")
+        if isinstance(provider, dict):
+            expected_network = (
+                "fixture-offline" if provider.get("provider") == "fixture" else "provider-api-only"
+            )
+            if run.get("network_policy") != expected_network:
+                errors.append("run.network_policy does not match provider")
+
+    artifact_errors, valid_artifacts = _validate_build_week_artifacts(
+        bundle.get("artifacts"), run_root=bundle_path.parent, mission=mission
+    )
+    errors.extend(artifact_errors)
+    if isinstance(provider, dict):
+        reconstructed = {
+            "artifacts": [
+                {
+                    "path": item["path"].removeprefix("artifact/"),
+                    "media_type": item["media_type"],
+                    "content": (bundle_path.parent / item["path"]).read_text(encoding="utf-8"),
+                }
+                for item in sorted(valid_artifacts, key=lambda value: value["path"])
+            ]
+        }
+        try:
+            if provider.get("response_hash") != hash_json(reconstructed):
+                errors.append("provider.response_hash does not match materialized artifacts")
+        except (OSError, UnicodeError, CanonicalizationError) as error:
+            errors.append(f"provider response evidence cannot be reconstructed: {error}")
+
+    acceptance = bundle.get("acceptance")
+    errors.extend(_key_errors("acceptance", acceptance, ACCEPTANCE_KEYS))
+    mission_status = "UNKNOWN"
+    recorded_checks: Any = None
+    if isinstance(acceptance, dict):
+        mission_status = acceptance.get("status", "UNKNOWN")
+        if mission_status not in {"PASSED", "FAILED"}:
+            errors.append("acceptance.status must be PASSED or FAILED")
+        recorded_checks = acceptance.get("checks")
+        if not isinstance(recorded_checks, list):
+            errors.append("acceptance.checks must be an array")
+        else:
+            for index, check in enumerate(recorded_checks):
+                errors.extend(_key_errors(f"acceptance.checks[{index}]", check, ACCEPTANCE_CHECK_KEYS))
+    if mission:
+        reproduced = evaluate_acceptance(mission, bundle_path.parent / "artifact")
+        if recorded_checks != reproduced:
+            errors.append("acceptance checks do not match independent reproduction")
+        expected_status = "PASSED" if all(check["passed"] for check in reproduced) else "FAILED"
+        if mission_status != expected_status:
+            errors.append("acceptance status does not match independent reproduction")
+
+    verification = bundle.get("verification")
+    errors.extend(_key_errors("verification", verification, VERIFICATION_KEYS_BUILD_WEEK))
+    if isinstance(verification, dict):
+        expected_claim = "LOCAL_VERIFIED" if mission_status == "PASSED" else "FAILED"
+        if verification.get("claimed_status") != expected_claim:
+            errors.append("verification.claimed_status contradicts acceptance evidence")
+
+    integrity = bundle.get("integrity")
+    errors.extend(_key_errors("integrity", integrity, INTEGRITY_KEYS))
+    anchor_status = "UNKNOWN"
+    if isinstance(integrity, dict):
+        anchor_status = integrity.get("anchor_status", "UNKNOWN")
+        if integrity.get("canonicalization") != CANONICALIZATION_PROFILE:
+            errors.append("integrity.canonicalization profile mismatch")
+        if integrity.get("hash_algorithm") != HASH_ALGORITHM:
+            errors.append("integrity.hash_algorithm must be sha256")
+        if anchor_status != "UNANCHORED":
+            errors.append("Build Week proof only permits anchor_status UNANCHORED")
+        for field in ("event_merkle_root", "bundle_hash"):
+            try:
+                parse_sha256_digest(integrity.get(field))
+            except ValueError as error:
+                errors.append(f"integrity.{field} is invalid: {error}")
+        try:
+            if integrity.get("bundle_hash") != compute_bundle_hash(bundle):
+                errors.append("integrity.bundle_hash mismatch")
+        except (BundleFormatError, CanonicalizationError, RecursionError, TypeError, ValueError) as error:
+            errors.append(f"bundle cannot be canonicalized: {error}")
+
+    events = bundle.get("events")
+    event_count = len(events) if isinstance(events, list) else 0
+    errors.extend(verify_event_chain(events))
+    if isinstance(events, list):
+        if isinstance(integrity, dict) and integrity.get("event_count") != len(events):
+            errors.append("integrity.event_count mismatch")
+        step_hashes = [event.get("step_hash") for event in events if isinstance(event, dict)]
+        if len(step_hashes) == len(events) and all(isinstance(item, str) for item in step_hashes):
+            try:
+                if isinstance(integrity, dict) and integrity.get("event_merkle_root") != merkle_root_from_step_hashes(step_hashes):
+                    errors.append("integrity.event_merkle_root mismatch")
+            except ValueError as error:
+                errors.append(f"cannot construct Merkle tree: {error}")
+        else:
+            errors.append("cannot construct Merkle tree from malformed events")
+
+        expected_types = (
+            ["runtime.mission_started", "provider.artifact_proposal_received"]
+            + ["runtime.artifact_materialized"] * len(valid_artifacts)
+            + ["runtime.acceptance_completed"]
+        )
+        if [event.get("type") if isinstance(event, dict) else None for event in events] != expected_types:
+            errors.append("Build Week event sequence mismatch")
+        elif mission and isinstance(run, dict) and isinstance(provider, dict):
+            if events[0].get("input") != {"mission_id": mission.mission_id, "manifest_hash": mission.manifest_hash}:
+                errors.append("mission start input mismatch")
+            expected_details = {
+                "run_id": run.get("run_id"),
+                "sandbox_backend": run.get("sandbox_backend"),
+                "security_level": run.get("security_level"),
+                "network_policy": run.get("network_policy"),
+            }
+            if events[0].get("details") != expected_details:
+                errors.append("run metadata does not match the hashed start event")
+            provider_event = events[1]
+            if provider_event.get("details") != provider:
+                errors.append("provider metadata does not match the hashed provider event")
+            if provider_event.get("input") != {
+                "provider": provider.get("provider"),
+                "requested_model": provider.get("requested_model"),
+                "input_hash": provider.get("input_hash"),
+            }:
+                errors.append("provider input evidence mismatch")
+            if provider_event.get("output") != {
+                "artifact_count": len(valid_artifacts),
+                "response_hash": provider.get("response_hash"),
+            }:
+                errors.append("provider output evidence mismatch")
+            materialized = events[2:-1]
+            if [event.get("output") for event in materialized] != sorted(
+                valid_artifacts, key=lambda item: item["path"]
+            ):
+                errors.append("materialization events do not match artifact evidence")
+            if events[-1].get("output") != acceptance:
+                errors.append("acceptance does not match the hashed final event")
+            if events[-1].get("input") != {"check_count": len(mission.acceptance_checks)}:
+                errors.append("acceptance event check_count mismatch")
+
+    return VerificationResult(
+        status="FAILED" if errors else "LOCAL_VERIFIED",
+        mission_status=mission_status,
+        anchor_status=anchor_status,
+        errors=tuple(errors),
+        event_count=event_count,
+    )
+
+
 def verify_bundle(path: str | Path) -> VerificationResult:
     bundle_path = Path(path)
     try:
@@ -751,6 +1116,8 @@ def verify_bundle(path: str | Path) -> VerificationResult:
             event_count=0,
         )
 
+    if bundle.get("schema_version") == SCHEMA_VERSION_BUILD_WEEK:
+        return _verify_build_week_loaded(bundle, bundle_path=bundle_path)
     if bundle.get("schema_version") == SCHEMA_VERSION_V2:
         return _verify_v02_loaded(bundle, bundle_path=bundle_path)
 

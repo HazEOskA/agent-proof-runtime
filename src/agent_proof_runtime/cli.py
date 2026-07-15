@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import uuid
 from datetime import UTC, datetime
@@ -12,8 +13,12 @@ from typing import Sequence
 
 from . import __version__
 from .gvisor import DockerGVisorSandbox
-from .mission import MissionValidationError, load_mission
+from .mission import MissionSpec, MissionValidationError
+from .mission_loader import load_declared_mission
+from .mission_v1 import BuildWeekMission
 from .mission_control import MissionControlConfig, MissionControlError, serve
+from .build_week_runtime import ArtifactPolicyError, run_build_week_mission
+from .providers import ProviderError
 from .runtime import RunDirectoryExists, run_demo, run_mission
 from .validator import verify_bundle
 
@@ -43,13 +48,19 @@ def _parser() -> argparse.ArgumentParser:
     verify.add_argument("bundle", type=Path)
     verify.add_argument("--json", action="store_true", help="print machine-readable result")
 
-    run = commands.add_parser("run", help="execute a declarative MissionSpec")
-    run.add_argument("mission", type=Path, help="path to apr.mission.v0.2 JSON")
+    run = commands.add_parser("run", help="execute a versioned declarative mission")
+    run.add_argument("mission", type=Path, help="path to a mission JSON manifest")
     run.add_argument(
         "--output",
         type=Path,
         default=None,
         help="new output directory (default: timestamped directory under .runs)",
+    )
+    run.add_argument(
+        "--provider",
+        choices=["fixture", "openai"],
+        default=None,
+        help="override provider for apr.mission.v1",
     )
 
     mission = commands.add_parser("mission", help="inspect a MissionSpec")
@@ -66,7 +77,11 @@ def _parser() -> argparse.ArgumentParser:
         "mission-control", help="start the local operator dashboard"
     )
     control.add_argument("--host", default="127.0.0.1")
-    control.add_argument("--port", type=int, default=8080)
+    try:
+        default_port = int(os.environ.get("PORT", "8080"))
+    except ValueError:
+        default_port = 8080
+    control.add_argument("--port", type=int, default=default_port)
     control.add_argument("--missions-dir", type=Path, default=Path("missions"))
     control.add_argument("--runs-dir", type=Path, default=Path(".runs"))
     control.add_argument(
@@ -132,7 +147,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if arguments.command == "mission":
         try:
-            spec = load_mission(arguments.mission)
+            spec = load_declared_mission(arguments.mission)
         except MissionValidationError as error:
             if arguments.json:
                 print(
@@ -150,18 +165,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         result = {
             "valid": True,
             "mission_id": spec.mission_id,
-            "backend": spec.backend,
-            "workload": spec.workload.kind,
-            "spec_hash": spec.spec_hash,
+            "schema_version": (
+                "apr.mission.v1" if isinstance(spec, BuildWeekMission) else "apr.mission.v0.2"
+            ),
+            "provider": spec.provider if isinstance(spec, BuildWeekMission) else None,
+            "backend": spec.backend if isinstance(spec, MissionSpec) else "controlled-artifact-runtime",
+            "workload": spec.workload.kind if isinstance(spec, MissionSpec) else "artifact-proposal",
+            "spec_hash": spec.spec_hash if isinstance(spec, MissionSpec) else spec.manifest_hash,
         }
         if arguments.json:
             print(json.dumps(result, ensure_ascii=False, indent=2))
         else:
             print("Mission: VALID")
             print(f"ID:      {spec.mission_id}")
-            print(f"Backend: {spec.backend}")
-            print(f"Workload: {spec.workload.kind}")
-            print(f"Hash:    {spec.spec_hash}")
+            print(f"Backend: {result['backend']}")
+            print(f"Workload: {result['workload']}")
+            if result["provider"]:
+                print(f"Provider: {result['provider']}")
+            print(f"Hash:    {result['spec_hash']}")
         return 0
 
     if arguments.command == "verify":
@@ -179,9 +200,18 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if arguments.command == "run":
         try:
-            spec = load_mission(arguments.mission)
+            spec = load_declared_mission(arguments.mission)
             output = arguments.output or _default_output(spec.mission_id)
-            result = run_mission(spec, output)
+            if isinstance(spec, BuildWeekMission):
+                result = run_build_week_mission(
+                    spec, output, provider_name=arguments.provider
+                )
+            else:
+                if arguments.provider is not None:
+                    raise MissionValidationError(
+                        ["--provider is only valid for apr.mission.v1"]
+                    )
+                result = run_mission(spec, output)
         except MissionValidationError as error:
             for item in error.errors:
                 print(f"ERROR: {item}", file=sys.stderr)
@@ -189,6 +219,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         except RunDirectoryExists as error:
             print(f"ERROR: {error}", file=sys.stderr)
             return 2
+        except ProviderError as error:
+            print(f"ERROR: provider failed: {error}", file=sys.stderr)
+            return 3
+        except ArtifactPolicyError as error:
+            print(f"ERROR: artifact policy rejected proposal: {error}", file=sys.stderr)
+            return 3
         except Exception as error:
             print(f"ERROR: mission run failed: {error}", file=sys.stderr)
             return 1
@@ -197,7 +233,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"Anchor:  {result.verification.anchor_status}")
         print(f"Bundle:  {result.bundle_path}")
         print(f"Report:  {result.report_path}")
-        return 0 if result.mission_status == "PASSED" and result.verification.valid else 1
+        return 0 if result.mission_status == "PASSED" and result.verification.valid else 4
 
     output = arguments.output or _default_output("demo")
     try:
