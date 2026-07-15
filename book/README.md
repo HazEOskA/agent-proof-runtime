@@ -5,6 +5,8 @@
 **Project:** Agent Proof Runtime  
 **Edition:** 0.1 — July 2026
 
+![Proof Before Trust — book cover](cover.svg)
+
 This directory contains the first complete book-length account of Agent Proof
 Runtime (APR). The repository—not chat history, screenshots, or promotional
 language—is the factual source for every implementation claim in the manuscript.
@@ -15,6 +17,7 @@ competition documentation, and public technical interface are English-first.
 ## Reading options
 
 - [`PROOF_BEFORE_TRUST.md`](PROOF_BEFORE_TRUST.md) — assembled single-file manuscript.
+- [`cover.svg`](cover.svg) — production cover with exact typography and embedded artwork.
 - [`chapters/00-preface.md`](chapters/00-preface.md) — start with the preface and continue through the eight parts.
 - [`SOURCES.md`](SOURCES.md) — repository evidence map and claim-boundary notes.
 
@@ -90,6 +93,7 @@ From the repository root:
 
 ```bash
 pandoc --metadata-file=book/metadata.yaml \
+  book/00-cover.md \
   book/chapters/00-title.md \
   book/chapters/00-preface.md \
   book/chapters/01-part-i.md \
