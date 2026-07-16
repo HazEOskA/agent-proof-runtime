@@ -13,6 +13,19 @@ Product doctrine:
 - [Product Blueprint](docs/PRODUCT_BLUEPRINT.md)
 - [Controlled live validation](docs/LIVE_VALIDATION.md)
 
+## Live demo
+
+- Mission Control: <https://agent-proof-runtime-production.up.railway.app>
+- Health endpoint: <https://agent-proof-runtime-production.up.railway.app/health>
+- Primary judge path: deterministic fixture mode with no API key or external network dependency.
+- Hosted run storage may be ephemeral; the checked-in CLI path remains the reproducible source of truth.
+
+## Supported platforms
+
+- CLI, fixture runtime, verifier, and Tamper Lab: Python 3.11 or 3.12 on Windows, Linux, and macOS.
+- Container deployment: Linux container; validated locally through Docker Desktop and publicly on Railway.
+- gVisor backend: Linux Docker host with registered `runsc`; it fails closed when unavailable. Real `runsc` execution remains unvalidated.
+
 ## The problem
 
 An agent can produce a useful artifact and a convincing activity log, but neither

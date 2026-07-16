@@ -4,8 +4,10 @@ This document records repository provenance without inventing calendar history.
 
 ## Declared baseline
 
-The `main` branch points to `4a22da3`, which initialized the repository. The
-technical sandbox baseline was then built in three preserved commits:
+The public GitHub `main` baseline before final Build Week publication points to
+`8bba7ed`. The original implementation lineage was preserved separately and then
+connected to that public history without rewriting either side. The technical sandbox
+baseline in that preserved lineage was built in three commits:
 
 | Commit | Capability present at that checkpoint |
 |---|---|

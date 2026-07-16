@@ -721,7 +721,7 @@ _DASHBOARD = r'''<!doctype html>
 
       <div class="command-dock">
         <div class="dock-brand"><svg aria-hidden="true" viewBox="0 0 192 192" style="width:22px;height:22px;border-radius:6px;vertical-align:middle;margin-right:8px"><use href="#codex-app-mark"></use></svg>CODEX LABS</div>
-        <div class="dock-command">osa@apr-mission-control:~$ verify --manifest-only</div>
+        <div class="dock-command">osa@apr-mission-control:~$ apr verify .runs/&lt;run-id&gt;/proof-bundle.json</div>
         <div class="dock-power">OPENAI · CHATGPT · CODEX</div>
       </div>
     </main>

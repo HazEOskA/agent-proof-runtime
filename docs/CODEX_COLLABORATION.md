@@ -31,10 +31,12 @@ fixture. It receives a safe mission projection and returns strict Structured Out
 The APR runtime—not the model—enforces paths, media types, file limits, and checks.
 The independent verifier—not the model—recalculates integrity.
 
-The OpenAI path is **IMPLEMENTED BUT NOT LIVE-VALIDATED** in this environment. It is
-covered by an injected fake official-client shape. No `OPENAI_API_KEY` was available,
-requested, generated, printed, written, or committed, and no real API request was
-performed.
+The original Codex Work environment implemented this path without a live key and
+covered it with an injected fake official-client shape. A separate controlled local
+GPT-5.6 run on 2026-07-15 later completed with mission `PASSED`, proof
+`LOCAL_VERIFIED`, anchor `UNANCHORED`, and no API key found in persisted run files.
+This validates the provider integration, not external anchoring or non-repudiation.
+See `LIVE_VALIDATION.md`.
 
 ## Use of official documentation
 
@@ -49,8 +51,8 @@ to install it, so official developer pages were used as the fallback source.
 
 ## What Codex did not do
 
-- no live OpenAI request;
+- no live OpenAI request from the original unavailable-key Codex Work environment;
 - no chain-of-thought capture or persistence;
 - no GitHub push, pull request, or merge from the unavailable-auth environment;
-- no Docker/runsc claim without the tools;
+- no unsupported Docker/runsc claim from that environment;
 - no external anchor, HSM, TEE, or bank-production certification claim.

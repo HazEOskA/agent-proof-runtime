@@ -1,6 +1,6 @@
 # Build Week Demo Script
 
-Target duration: 90 seconds. No API key required.
+Target duration: 90 seconds. Primary recording path requires no API key.
 
 ## Before recording
 
@@ -10,57 +10,55 @@ apr run examples/build-week-mission.json --provider fixture --output .runs/build
 apr mission-control
 ```
 
-Open <http://127.0.0.1:8080> and keep a terminal ready.
+Open <http://127.0.0.1:8080> and keep a terminal ready. The hosted Mission Control may be used for inspection, but the local fixture path is the reproducible judge path.
 
 ## Script
 
-**0–15 seconds — problem**
+**0–12 seconds — problem**
 
-“Agent logs tell us a story. They do not independently prove that the output,
-policy result, and history still match. Agent Proof Runtime turns one approved
-mission into evidence another verifier can recalculate.”
+“Agents can perform a hundred steps autonomously. But logs alone cannot prove that step thirty-seven, the output, and the acceptance result still match what actually happened.”
 
-Show the strict Build Week mission: exact artifacts, byte limits, media types, and
-deterministic checks. State that the fixture is offline but uses the live contract.
+Show the headline: **Run autonomous work. Verify what actually happened.**
 
-**15–35 seconds — verified run**
+**12–25 seconds — built with Codex**
 
-Open the run in Mission Control. Point to:
+“Codex helped build the strict mission manifest, controlled artifact runtime, independent verifier, security regression tests, and disposable Tamper Lab. The model never decides whether its own proof is valid.”
 
-- provider `fixture` and model request `gpt-5.6`;
+Briefly show the five-stage Evidence Control Room.
+
+**25–45 seconds — verified run**
+
+Click **Run verified demo**. Point to:
+
+- checked-in manifest only; no arbitrary commands or filesystem paths;
 - mission `PASSED`, proof `LOCAL_VERIFIED`, anchor `UNANCHORED`;
-- artifact hashes and six acceptance results;
-- event replay, Merkle root, and bundle hash.
+- six deterministic acceptance checks;
+- artifact hashes, event replay, Merkle root, and bundle hash.
 
-Say: “The UI only renders evidence. The CLI verifier is the source of the verdict.”
+Say: “The interface visualizes evidence. The independent CLI verifier is the source of the verdict.”
 
-**35–65 seconds — Tamper Lab**
+**45–70 seconds — Tamper Lab hero moment**
 
-Click artifact, event, then metadata tampering. For each result, show `FAILED`, one
-exact failure reason, and `original preserved=true`.
+Click **Tamper artifact**, then show the red integrity state.
 
-Say: “Each attack runs on a disposable copy. The original bundle and artifacts are
-fingerprinted before and after.”
+“Now I change the disposable copy. The verifier recomputes the evidence and returns `FAILED`, while the original run remains preserved and `LOCAL_VERIFIED`.”
 
-**65–80 seconds — independent CLI**
+Optionally show event or metadata tampering if time allows.
+
+**70–82 seconds — independent CLI**
 
 ```bash
 apr verify .runs/build-week-demo/proof-bundle.json
 ```
 
-Show that the original remains `LOCAL_VERIFIED / UNANCHORED`.
+Show `LOCAL_VERIFIED`, `PASSED`, and `UNANCHORED`.
 
-**80–90 seconds — honest close**
+**82–90 seconds — honest close**
 
-“GPT-5.6 is implemented as the optional structured artifact provider, but no live
-request was made in this environment. This is local proof, not HSM-backed
-non-repudiation. External anchoring and hardened isolation are the roadmap.”
+“GPT-5.6 is an optional strict Structured Output artifact provider and was validated in one controlled live run. It is not the verifier. APR proves local consistency today; external anchoring and real gVisor execution remain explicit next trust layers.”
 
-## Optional controlled live smoke test
+Final line: **Don’t trust the agent. Verify the proof.**
 
-Only after the official SDK is installed and `OPENAI_API_KEY` is already configured
-in the environment:
+## Controlled live-provider evidence
 
-```bash
-APR_OPENAI_MODEL=gpt-5.6 apr run examples/build-week-mission.json --provider openai --output .runs/gpt-5-6-smoke
-```
+The optional GPT-5.6 validation is documented in `docs/LIVE_VALIDATION.md`. The demo should not expose, request, or display an API key.
