@@ -610,7 +610,7 @@ _DASHBOARD = r'''<!doctype html>
 
     <header class="masthead">
       <div class="brand-lockup">
-        <img class="brand-source" src="__OSA_BRAND_DATA__" width="864" height="1536" alt="OsaTechGPT · Proof Systems · Mission Control">
+        <img class="brand-source" src="__OSA_BRAND_DATA__" data-asset-status="__OSA_ASSET_STATUS__" width="864" height="1536" alt="OsaTechGPT · Proof Systems · Mission Control">
         <span class="brand-source-label">approved OsaTechGPT lockup</span>
       </div>
       <div class="runtime-stack" aria-label="Runtime providers">
@@ -979,17 +979,21 @@ _DASHBOARD = r'''<!doctype html>
 def render_mission_control(csrf_token: str) -> str:
     """Render the operator dashboard with a safely serialized CSRF token."""
 
+    asset_status = "embedded-module"
     try:
         from .osa_brand_source import JPEG_BASE64
 
         brand_data_uri = f"data:image/jpeg;base64,{JPEG_BASE64}"
-    except Exception:  # An optional visual asset must never take Mission Control down.
+    except Exception as error:  # An optional visual asset must never take Mission Control down.
+        asset_status = f"{type(error).__name__}: {error}"
         try:
             encoded_brand = base64.b64encode(_OSA_BRAND_PATH.read_bytes()).decode("ascii")
             brand_data_uri = f"data:image/jpeg;base64,{encoded_brand}"
+            asset_status += " · file-fallback"
         except OSError:
             brand_data_uri = ""
     return (
         _DASHBOARD.replace("__APR_CSRF_TOKEN__", json.dumps(csrf_token))
         .replace("__OSA_BRAND_DATA__", brand_data_uri)
+        .replace("__OSA_ASSET_STATUS__", asset_status)
     )
