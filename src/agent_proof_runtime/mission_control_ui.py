@@ -464,8 +464,8 @@ _DASHBOARD = r'''<!doctype html>
     .dock-command { min-width: 0; padding: 9px 12px; border: 1px solid #506c8d; border-radius: 7px; background: rgba(184,213,255,.13); color: #7af4d9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .dock-power { text-align: right; color: #aabdc7; }
 
-    .toast { position: fixed; right: 20px; bottom: 20px; z-index: 50; width: min(430px, calc(100% - 40px)); padding: 14px 16px; border: 1px solid #37d9d0; border-radius: 10px; background: #0c2529; color: #d9f9f6; box-shadow: 0 18px 70px #000b, 0 0 25px rgba(54,240,228,.12); font: 700 11px/1.5 var(--mono); transform: translateY(150%); transition: transform .22s ease; }
-    .toast.show { transform: translateY(0); }
+    .toast { position: fixed; right: 20px; bottom: 20px; z-index: 50; width: min(430px, calc(100% - 40px)); padding: 14px 16px; border: 1px solid #37d9d0; border-radius: 10px; background: #0c2529; color: #d9f9f6; box-shadow: 0 18px 70px #000b, 0 0 25px rgba(54,240,228,.12); font: 700 11px/1.5 var(--mono); opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(150%); transition: transform .22s ease, opacity .18s ease, visibility 0s linear .22s; }
+    .toast.show { opacity: 1; visibility: visible; transform: translateY(0); transition-delay: 0s; }
     .toast.error { border-color: #a93d48; background: #321219; color: #ffd0d3; }
     footer { margin-top: 15px; padding: 4px 8px; color: #526a70; font: 700 9px/1.65 var(--mono); }
 
