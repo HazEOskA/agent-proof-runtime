@@ -1,0 +1,112 @@
+name: Finalize submission once
+
+on:
+  push:
+    branches:
+      - build-week/codex-mission-control-v1
+    paths:
+      - .github/workflows/finalize-submission-once.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apr-submission-finalizer
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: build-week/codex-mission-control-v1
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Apply allowlisted submission patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              target = Path(path)
+              text = target.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one replacement target, found {count}")
+              target.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          replace_once(
+              "src/agent_proof_runtime/mission_control_ui.py",
+              "osa@apr-mission-control:~$ verify --manifest-only",
+              "osa@apr-mission-control:~$ apr verify .runs/&lt;run-id&gt;/proof-bundle.json",
+          )
+
+          readme_anchor = """- [Controlled live validation](docs/LIVE_VALIDATION.md)\n\n## The problem\n"""
+          readme_insert = """- [Controlled live validation](docs/LIVE_VALIDATION.md)\n\n## Live demo\n\n- Mission Control: <https://agent-proof-runtime-production.up.railway.app>\n- Health endpoint: <https://agent-proof-runtime-production.up.railway.app/health>\n- Primary judge path: deterministic fixture mode with no API key or external network dependency.\n- Hosted run storage may be ephemeral; the checked-in CLI path remains the reproducible source of truth.\n\n## Supported platforms\n\n- CLI, fixture runtime, verifier, and Tamper Lab: Python 3.11 or 3.12 on Windows, Linux, and macOS.\n- Container deployment: Linux container; validated locally through Docker Desktop and publicly on Railway.\n- gVisor backend: Linux Docker host with registered `runsc`; it fails closed when unavailable. Real `runsc` execution remains unvalidated.\n\n## The problem\n"""
+          replace_once("README.md", readme_anchor, readme_insert)
+
+          Path("docs/DEMO_SCRIPT.md").write_text(
+              """# Build Week Demo Script\n\nTarget duration: 90 seconds. Primary recording path requires no API key.\n\n## Before recording\n\n```bash\npython -m pip install -e .\napr run examples/build-week-mission.json --provider fixture --output .runs/build-week-demo\napr mission-control\n```\n\nOpen <http://127.0.0.1:8080> and keep a terminal ready. The hosted Mission Control may be used for inspection, but the local fixture path is the reproducible judge path.\n\n## Script\n\n**0–12 seconds — problem**\n\n“Agents can perform a hundred steps autonomously. But logs alone cannot prove that step thirty-seven, the output, and the acceptance result still match what actually happened.”\n\nShow the headline: **Run autonomous work. Verify what actually happened.**\n\n**12–25 seconds — built with Codex**\n\n“Codex helped build the strict mission manifest, controlled artifact runtime, independent verifier, security regression tests, and disposable Tamper Lab. The model never decides whether its own proof is valid.”\n\nBriefly show the five-stage Evidence Control Room.\n\n**25–45 seconds — verified run**\n\nClick **Run verified demo**. Point to:\n\n- checked-in manifest only; no arbitrary commands or filesystem paths;\n- mission `PASSED`, proof `LOCAL_VERIFIED`, anchor `UNANCHORED`;\n- six deterministic acceptance checks;\n- artifact hashes, event replay, Merkle root, and bundle hash.\n\nSay: “The interface visualizes evidence. The independent CLI verifier is the source of the verdict.”\n\n**45–70 seconds — Tamper Lab hero moment**\n\nClick **Tamper artifact**, then show the red integrity state.\n\n“Now I change the disposable copy. The verifier recomputes the evidence and returns `FAILED`, while the original run remains preserved and `LOCAL_VERIFIED`.”\n\nOptionally show event or metadata tampering if time allows.\n\n**70–82 seconds — independent CLI**\n\n```bash\napr verify .runs/build-week-demo/proof-bundle.json\n```\n\nShow `LOCAL_VERIFIED`, `PASSED`, and `UNANCHORED`.\n\n**82–90 seconds — honest close**\n\n“GPT-5.6 is an optional strict Structured Output artifact provider and was validated in one controlled live run. It is not the verifier. APR proves local consistency today; external anchoring and real gVisor execution remain explicit next trust layers.”\n\nFinal line: **Don’t trust the agent. Verify the proof.**\n\n## Controlled live-provider evidence\n\nThe optional GPT-5.6 validation is documented in `docs/LIVE_VALIDATION.md`. The demo should not expose, request, or display an API key.\n""",
+              encoding="utf-8",
+          )
+
+          replace_once(
+              "docs/CODEX_COLLABORATION.md",
+              """The OpenAI path is **IMPLEMENTED BUT NOT LIVE-VALIDATED** in this environment. It is\ncovered by an injected fake official-client shape. No `OPENAI_API_KEY` was available,\nrequested, generated, printed, written, or committed, and no real API request was\nperformed.\n""",
+              """The original Codex Work environment implemented this path without a live key and\ncovered it with an injected fake official-client shape. A separate controlled local\nGPT-5.6 run on 2026-07-15 later completed with mission `PASSED`, proof\n`LOCAL_VERIFIED`, anchor `UNANCHORED`, and no API key found in persisted run files.\nThis validates the provider integration, not external anchoring or non-repudiation.\nSee `LIVE_VALIDATION.md`.\n""",
+          )
+          replace_once(
+              "docs/CODEX_COLLABORATION.md",
+              """- no live OpenAI request;\n- no chain-of-thought capture or persistence;\n- no GitHub push, pull request, or merge from the unavailable-auth environment;\n- no Docker/runsc claim without the tools;\n""",
+              """- no live OpenAI request from the original unavailable-key Codex Work environment;\n- no chain-of-thought capture or persistence;\n- no GitHub push, pull request, or merge from the unavailable-auth environment;\n- no unsupported Docker/runsc claim from that environment;\n""",
+          )
+
+          replace_once(
+              "docs/BEFORE_BUILD_WEEK.md",
+              """The `main` branch points to `4a22da3`, which initialized the repository. The\ntechnical sandbox baseline was then built in three preserved commits:\n""",
+              """The public GitHub `main` baseline before final Build Week publication points to\n`8bba7ed`. The original implementation lineage was preserved separately and then\nconnected to that public history without rewriting either side. The technical sandbox\nbaseline in that preserved lineage was built in three commits:\n""",
+          )
+
+          allowed = {
+              "README.md",
+              "docs/BEFORE_BUILD_WEEK.md",
+              "docs/CODEX_COLLABORATION.md",
+              "docs/DEMO_SCRIPT.md",
+              "src/agent_proof_runtime/mission_control_ui.py",
+          }
+          import subprocess
+          changed = set(
+              subprocess.check_output(["git", "diff", "--name-only"], text=True).splitlines()
+          )
+          if changed != allowed:
+              raise SystemExit(f"unexpected changed paths: {sorted(changed)}")
+          PY
+
+      - name: Validate patch
+        shell: bash
+        run: |
+          git diff --check
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+          python -m unittest discover -s tests -v
+          apr mission validate examples/build-week-mission.json
+          apr run examples/build-week-mission.json --provider fixture --output /tmp/apr-finalization
+          apr verify /tmp/apr-finalization/proof-bundle.json
+          apr tamper-lab /tmp/apr-finalization/proof-bundle.json --case artifact
+          apr tamper-lab /tmp/apr-finalization/proof-bundle.json --case event
+          apr tamper-lab /tmp/apr-finalization/proof-bundle.json --case metadata
+
+      - name: Commit validated patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md docs/BEFORE_BUILD_WEEK.md docs/CODEX_COLLABORATION.md docs/DEMO_SCRIPT.md src/agent_proof_runtime/mission_control_ui.py
+          git commit -m "docs: finalize build week submission claims"
+          git push origin HEAD:build-week/codex-mission-control-v1
