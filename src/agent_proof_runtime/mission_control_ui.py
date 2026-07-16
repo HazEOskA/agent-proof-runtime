@@ -1,4 +1,3 @@
-"""Dependency-free Mission Control dashboard."""
 
 from __future__ import annotations
 
@@ -195,7 +194,7 @@ _DASHBOARD = r'''<!doctype html>
     .runtime-chip.primary { border-color: #337584; box-shadow: inset 0 0 25px rgba(54,240,228,.08), 0 0 18px rgba(54,240,228,.1); }
     .runtime-chip svg { width: 34px; height: 34px; color: #fff; }
     .runtime-chip.openai-chip { grid-template-columns: 1fr; align-content: center; gap: 6px; }
-    .runtime-chip svg.openai-wordmark { width: 82px; height: auto; }
+    .runtime-chip svg.openai-wordmark { width: 82px; height: 22px; }
     .runtime-chip svg.codex-mark { width: 38px; height: 38px; border-radius: 10px; }
     .runtime-chip.openai-chip small { margin-top: 0; }
     .runtime-chip .runtime-name { font: 800 13px/1.05 var(--sans); letter-spacing: -.02em; }
