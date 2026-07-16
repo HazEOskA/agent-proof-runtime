@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-proof-runtime"
-version = "0.1.0"
+version = "0.3.0"
 description = "Development sandbox with independently verifiable execution receipts for AI agents."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -18,6 +18,9 @@ classifiers = [
   "Topic :: Security",
 ]
 dependencies = []
+
+[project.optional-dependencies]
+openai = ["openai>=2.0.0"]
 
 [project.scripts]
 apr = "agent_proof_runtime.cli:main"

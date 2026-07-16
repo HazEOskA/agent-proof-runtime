@@ -21,3 +21,10 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e .
       - run: python -m unittest discover -s tests -v
+      - run: apr mission validate missions/demo.json
+      - run: apr run missions/demo.json --output /tmp/apr-ci-run
+      - run: apr verify /tmp/apr-ci-run/proof-bundle.json
+      - run: apr mission validate examples/build-week-mission.json
+      - run: apr run examples/build-week-mission.json --provider fixture --output /tmp/apr-build-week-ci
+      - run: apr verify /tmp/apr-build-week-ci/proof-bundle.json
+      - run: apr mission-control --help

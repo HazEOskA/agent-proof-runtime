@@ -69,13 +69,19 @@ def _parse_worker_events(stdout: str) -> tuple[list[dict[str, Any]], list[str]]:
     return events, errors
 
 
-def _copy_artifacts(source: Path, destination: Path) -> None:
+def copy_artifacts(
+    source: Path,
+    destination: Path,
+    *,
+    max_files: int = MAX_ARTIFACT_FILES,
+    max_bytes: int = MAX_ARTIFACT_BYTES,
+) -> None:
     if not source.exists():
         return
     destination.mkdir(parents=True, exist_ok=False)
     file_count = 0
     total_bytes = 0
-    for item in sorted(source.rglob("*")):
+    for item in source.rglob("*"):
         if item.is_symlink():
             raise SandboxPolicyError("agent artifacts cannot contain symbolic links")
         relative = item.relative_to(source)
@@ -87,9 +93,9 @@ def _copy_artifacts(source: Path, destination: Path) -> None:
             raise SandboxPolicyError("agent artifacts must be regular files")
         file_count += 1
         total_bytes += item.stat().st_size
-        if file_count > MAX_ARTIFACT_FILES:
+        if file_count > max_files:
             raise SandboxPolicyError("artifact file-count limit exceeded")
-        if total_bytes > MAX_ARTIFACT_BYTES:
+        if total_bytes > max_bytes:
             raise SandboxPolicyError("artifact byte-size limit exceeded")
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(item, target)
@@ -102,7 +108,15 @@ class LocalProcessSandbox:
     security_level = SECURITY_LEVEL
     network_policy = NETWORK_POLICY
 
-    def run(self, artifact_destination: Path, *, run_id: str, timeout: int = 5) -> SandboxResult:
+    def run(
+        self,
+        artifact_destination: Path,
+        *,
+        run_id: str,
+        timeout: int = 5,
+        max_artifact_files: int = MAX_ARTIFACT_FILES,
+        max_artifact_bytes: int = MAX_ARTIFACT_BYTES,
+    ) -> SandboxResult:
         worker = Path(__file__).with_name("worker.py").resolve()
         environment = {
             "APR_RUN_ID": run_id,
@@ -140,7 +154,12 @@ class LocalProcessSandbox:
                     stderr = stderr.decode("utf-8", errors="replace")
 
             events, protocol_errors = _parse_worker_events(stdout)
-            _copy_artifacts(workspace / "artifact", artifact_destination)
+            copy_artifacts(
+                workspace / "artifact",
+                artifact_destination,
+                max_files=max_artifact_files,
+                max_bytes=max_artifact_bytes,
+            )
 
         duration_ms = int((time.monotonic() - started) * 1000)
         return SandboxResult(

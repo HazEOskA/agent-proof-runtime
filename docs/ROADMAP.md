@@ -8,22 +8,34 @@
 - hash chain, RFC 6962 Merkle root,
 - Proof Bundle, validator i raport HTML.
 
-## v0.2 — użyteczny runner
+## v0.2 — Mission Runner (obecny etap)
 
-- jawny manifest misji,
-- allowlista narzędzi i limitów,
-- adapter agenta bez związania z konkretnym LLM,
-- streaming zdarzeń,
-- wersjonowany JSON Schema,
-- deterministyczne fixture'y interoperacyjności.
+- ścisły manifest misji,
+- adapter workloadu bez związania z konkretnym LLM,
+- fail-closed Docker + gVisor command runner,
+- blokada sieci, read-only root i limity zasobów,
+- Proof Bundle v0.2 z hashem MissionSpec,
+- zgodność validatora wstecz z v0.1.
 
-## v0.3 — realna granica izolacji
+## Build Week — Mission Control v1
 
-- backend gVisor albo microVM,
-- egzekwowana blokada sieci i kontrolowany egress,
-- read-only base image i efemeryczny overlay,
-- polityka mountów, UID/GID i seccomp,
-- testy ucieczki oraz wyczerpania zasobów.
+- lokalny panel operatora nad istniejącym Mission Runnerem,
+- wykrywanie i ścisła walidacja manifestów,
+- kontrolowany start misji oraz historia runów,
+- ponowna niezależna weryfikacja z panelu,
+- bezpieczne udostępnianie wyłącznie raportu, bundle i zadeklarowanych artefaktów,
+- blokada zdalnego bindu bez jawnej zgody operatora.
+
+Mission Control nie zmienia wersji Proof Bundle ani kontraktu MissionSpec. Jest
+warstwą demonstracyjną nad ukończonym rdzeniem v0.2.
+
+## v0.3 — lab i twarde testy izolacji
+
+- uruchomienie `runsc` na osobnym hoście labowym,
+- fixture z realnym przypiętym obrazem,
+- testy ucieczki, forka, timeoutu i wyczerpania zasobów,
+- eksport zmodyfikowanego workspace jako kontrolowanego artefaktu,
+- opcjonalny backend microVM po porównaniu kosztu i czasu startu.
 
 ## v0.4 — zaufanie poza hostem runtime
 

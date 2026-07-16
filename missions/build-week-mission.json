@@ -1,0 +1,81 @@
+{
+  "schema_version": "apr.mission.v1",
+  "mission_id": "build-week-demo",
+  "title": "Verified AI launch brief",
+  "goal": "Create a small launch brief and machine-readable metadata that can be independently checked without executing model-generated commands.",
+  "provider": "fixture",
+  "model": "gpt-5.6",
+  "artifact_contract": {
+    "artifacts": [
+      {
+        "path": "site/index.html",
+        "media_type": "text/html",
+        "max_bytes": 4096,
+        "required": true,
+        "fixture_content": "<!doctype html>\n<html lang=\"en\"><meta charset=\"utf-8\"><title>Agent Proof Runtime</title><main><h1>Work that proves itself.</h1><p>Independent evidence for autonomous AI work.</p></main>\n"
+      },
+      {
+        "path": "site/data.json",
+        "media_type": "application/json",
+        "max_bytes": 1024,
+        "required": true,
+        "fixture_content": "{\"project\":\"Agent Proof Runtime\",\"status\":\"fixture-verified\",\"anchor\":\"UNANCHORED\"}\n"
+      }
+    ],
+    "max_files": 4,
+    "max_total_bytes": 8192,
+    "allowed_media_types": [
+      "text/html",
+      "application/json"
+    ]
+  },
+  "limits": {
+    "provider_timeout_seconds": 60,
+    "max_output_tokens": 4096
+  },
+  "acceptance_checks": [
+    {
+      "id": "html_exists",
+      "type": "file_exists",
+      "path": "site/index.html"
+    },
+    {
+      "id": "exact_file_count",
+      "type": "file_count",
+      "minimum": 2,
+      "maximum": 2
+    },
+    {
+      "id": "headline_present",
+      "type": "contains_text",
+      "path": "site/index.html",
+      "text": "Work that proves itself."
+    },
+    {
+      "id": "metadata_json_valid",
+      "type": "json_valid",
+      "path": "site/data.json"
+    },
+    {
+      "id": "metadata_keys_present",
+      "type": "json_required_keys",
+      "path": "site/data.json",
+      "keys": [
+        "project",
+        "status",
+        "anchor"
+      ]
+    },
+    {
+      "id": "html_size_bounded",
+      "type": "maximum_size",
+      "path": "site/index.html",
+      "max_bytes": 4096
+    }
+  ],
+  "analysis_policy": {
+    "persist_reasoning": false,
+    "allow_reasoning_summary": false
+  }
+}
+
