@@ -983,7 +983,7 @@ def render_mission_control(csrf_token: str) -> str:
         from .osa_brand_source import JPEG_BASE64
 
         brand_data_uri = f"data:image/jpeg;base64,{JPEG_BASE64}"
-    except ImportError:  # Local design preview before the generated module is present.
+    except Exception:  # An optional visual asset must never take Mission Control down.
         try:
             encoded_brand = base64.b64encode(_OSA_BRAND_PATH.read_bytes()).decode("ascii")
             brand_data_uri = f"data:image/jpeg;base64,{encoded_brand}"
