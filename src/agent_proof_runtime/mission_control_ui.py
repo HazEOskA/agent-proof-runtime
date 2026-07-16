@@ -2,7 +2,17 @@
 
 from __future__ import annotations
 
+import base64
 import json
+from pathlib import Path
+
+try:
+    from .osa_brand_source import JPEG_BASE64 as _OSA_BRAND_BASE64
+except ImportError:  # Local design preview before the generated module is present.
+    _OSA_BRAND_BASE64 = ""
+
+
+_OSA_BRAND_PATH = Path(__file__).with_name("assets") / "osa-brand-source.jpg"
 
 
 _DASHBOARD = r'''<!doctype html>
@@ -139,74 +149,60 @@ _DASHBOARD = r'''<!doctype html>
       gap: 28px;
       padding: 28px 14px 22px;
     }
-    .brand-lockup { display: flex; align-items: center; gap: 18px; min-width: 0; }
-    .brand-mark {
+    .brand-lockup {
       position: relative;
-      width: 88px;
-      aspect-ratio: 1;
-      flex: 0 0 auto;
-      display: grid;
-      place-items: center;
-      clip-path: polygon(50% 0, 90% 20%, 100% 68%, 50% 100%, 0 68%, 10% 20%);
-      background: linear-gradient(145deg, #84fff5 0%, #1e777e 31%, #071216 62%, #1ad9cb 100%);
-      filter: drop-shadow(0 0 18px rgba(54, 240, 228, .28));
+      width: min(510px, 100%);
+      height: 172px;
+      min-width: 0;
+      overflow: hidden;
+      isolation: isolate;
+      -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 4%, #000 92%, transparent 100%);
+      mask-image: linear-gradient(90deg, transparent 0, #000 4%, #000 92%, transparent 100%);
     }
-    .brand-mark::before {
-      content: "";
+    .brand-source {
       position: absolute;
-      inset: 5px;
-      clip-path: inherit;
-      background: radial-gradient(circle at 50% 35%, #163f46, #061013 70%);
+      z-index: -1;
+      left: -6px;
+      top: -60px;
+      width: 864px;
+      max-width: none;
+      height: 1536px;
+      object-fit: cover;
+      pointer-events: none;
     }
-    .brand-mark span {
-      position: relative;
-      color: #d8fffc;
-      font: 900 25px/.78 var(--mono);
-      letter-spacing: -.12em;
-      text-align: center;
-      text-shadow: 0 0 12px #21d8cf;
-    }
-    .brand-name { min-width: 0; }
-    .brand-name .wordmark {
-      font-size: clamp(28px, 4vw, 48px);
-      line-height: .95;
-      font-weight: 840;
-      font-style: italic;
-      letter-spacing: -.055em;
-      white-space: nowrap;
-      color: #b8c8cb;
-      text-shadow: 0 2px #061013;
-    }
-    .brand-name .wordmark em { color: #2ab9ff; font-style: italic; text-shadow: 0 0 18px rgba(42,185,255,.32); }
-    .brand-name .submark { margin-top: 8px; font: 700 11px/1.3 var(--mono); letter-spacing: .1em; color: #96adb1; }
-    .brand-name .studio {
-      display: inline-flex;
-      margin-top: 8px;
-      padding: 3px 13px;
-      border: 1px solid #22525a;
-      clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
-      color: #5fa1d2;
-      font: 700 10px/1 var(--mono);
-      letter-spacing: .16em;
+    .brand-source-label {
+      position: absolute;
+      right: 16px;
+      bottom: 8px;
+      padding: 3px 7px;
+      border: 1px solid rgba(70, 226, 218, .25);
+      border-radius: 999px;
+      background: rgba(3, 12, 15, .82);
+      color: #6f979b;
+      font: 700 8px/1 var(--mono);
+      letter-spacing: .08em;
+      text-transform: uppercase;
     }
 
-    .runtime-stack { display: grid; grid-template-columns: repeat(3, auto); align-items: center; gap: 10px; }
+    .runtime-stack { display: grid; grid-template-columns: repeat(3, minmax(106px, 1fr)); align-items: stretch; gap: 10px; }
     .runtime-chip {
-      min-width: 74px;
-      min-height: 62px;
+      min-height: 82px;
       display: grid;
-      place-items: center;
-      padding: 8px 10px;
+      grid-template-columns: 38px minmax(0, 1fr);
+      place-items: center start;
+      gap: 9px;
+      padding: 10px;
       border: 1px solid #2c4650;
       border-radius: 12px;
       background: linear-gradient(150deg, rgba(26,46,53,.95), rgba(7,16,20,.95));
       box-shadow: inset 0 1px rgba(255,255,255,.05), 0 10px 30px rgba(0,0,0,.25);
-      font: 800 11px/1.25 var(--mono);
-      text-align: center;
-      color: #adc2c6;
+      color: #f2f7f7;
     }
-    .runtime-chip.primary { min-height: 82px; border-color: #337584; color: var(--cyan-soft); box-shadow: inset 0 0 25px rgba(54,240,228,.08), 0 0 18px rgba(54,240,228,.1); }
-    .runtime-chip small { display: block; margin-top: 4px; color: #607c83; font-size: 9px; }
+    .runtime-chip.primary { border-color: #337584; box-shadow: inset 0 0 25px rgba(54,240,228,.08), 0 0 18px rgba(54,240,228,.1); }
+    .runtime-chip svg { width: 34px; height: 34px; color: #fff; }
+    .runtime-chip .runtime-name { font: 800 13px/1.05 var(--sans); letter-spacing: -.02em; }
+    .runtime-chip small { display: block; margin-top: 5px; color: #769198; font: 700 8px/1.25 var(--mono); letter-spacing: .04em; text-transform: uppercase; }
+    .marks-note { grid-column: 1 / -1; color: #526a70; font: 700 8px/1.35 var(--mono); text-align: right; }
 
     .hero {
       display: grid;
@@ -302,43 +298,102 @@ _DASHBOARD = r'''<!doctype html>
     h3 { letter-spacing: -.02em; }
     .section-note { max-width: 410px; color: #728a90; font-size: 12px; line-height: 1.55; text-align: right; }
 
-    .flow-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 18px; margin: 12px 0 16px; }
+    .flow-board {
+      position: relative;
+      min-height: 278px;
+      margin: 12px 0 16px;
+      overflow: hidden;
+      border: 1px solid #1e474e;
+      border-radius: 13px;
+      background:
+        radial-gradient(circle at 72% 45%, rgba(54,240,228,.07), transparent 24%),
+        linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px),
+        linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+        #061316;
+      background-size: auto, 20px 20px, 20px 20px, auto;
+      box-shadow: inset 0 0 60px rgba(0,0,0,.35);
+    }
+    .flow-wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+    .bus-base, .bus-progress, .tamper-wire { fill: none; vector-effect: non-scaling-stroke; }
+    .bus-base { stroke: #20464d; stroke-width: 8; }
+    .bus-base-thin { fill: none; stroke: #315c63; stroke-width: 1.5; stroke-dasharray: 3 8; vector-effect: non-scaling-stroke; }
+    .bus-progress { stroke: var(--green); stroke-width: 3; stroke-dasharray: 9 13; filter: drop-shadow(0 0 5px rgba(104,247,154,.8)); animation: trace-flow 3.2s linear infinite; opacity: 0; }
+    .tamper-wire { stroke: var(--red); stroke-width: 3; stroke-dasharray: 5 11; filter: drop-shadow(0 0 6px rgba(255,93,104,.75)); animation: trace-flow 2.1s linear infinite reverse; opacity: 0; }
+    .flow-via { fill: #061316; stroke: #3a6870; stroke-width: 2; vector-effect: non-scaling-stroke; }
+    .flow-packet { fill: var(--cyan); filter: drop-shadow(0 0 7px var(--cyan)); opacity: 0; }
+    .flow-board[data-state="running"] .bus-progress,
+    .flow-board[data-state="verified"] .bus-progress,
+    .flow-board[data-state="failed"] .bus-progress,
+    .flow-board[data-state="tamper-failed"] .bus-progress { opacity: 1; }
+    .flow-board[data-state="running"] .flow-packet { opacity: 1; }
+    .flow-board[data-state="tamper-failed"] .tamper-wire { opacity: 1; }
+
+    .flow-grid {
+      position: relative;
+      z-index: 2;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 14px;
+      padding: 34px 18px 20px;
+    }
     .flow-step {
       position: relative;
-      min-height: 72px;
+      min-width: 0;
+      min-height: 128px;
       padding: 13px;
-      border: 1px solid #315469;
-      border-radius: 8px;
-      background: linear-gradient(135deg, #183b4a, #172a42);
-      box-shadow: inset 0 0 22px rgba(70,169,255,.07);
-      color: #a8e8dd;
-      font: 800 11px/1.35 var(--mono);
-      text-transform: uppercase;
+      border: 1px solid #294c54;
+      border-radius: 10px;
+      background: linear-gradient(155deg, rgba(16,39,44,.97), rgba(7,17,20,.98));
+      color: #70878d;
+      font-family: var(--mono);
+      transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
     }
-    .flow-step:not(:last-child)::after {
+    .flow-step::before {
       content: "";
       position: absolute;
-      top: 50%;
-      left: calc(100% + 1px);
-      width: 18px;
-      height: 2px;
-      background: linear-gradient(90deg, var(--cyan), #1e5d63);
-      box-shadow: 0 0 8px rgba(54,240,228,.5);
-    }
-    .flow-step:not(:last-child)::before {
-      content: "";
-      position: absolute;
-      z-index: 1;
-      top: calc(50% - 3px);
-      right: -19px;
-      width: 6px;
-      height: 6px;
+      top: -19px;
+      left: calc(50% - 5px);
+      width: 10px;
+      height: 10px;
+      border: 2px solid #345961;
       border-radius: 50%;
-      background: var(--cyan);
+      background: #061316;
     }
-    .flow-step span { display: block; margin-bottom: 8px; color: #5de2d5; }
-    .flow-step.active { border-color: var(--green); box-shadow: inset 0 0 25px rgba(104,247,154,.1), 0 0 18px rgba(104,247,154,.08); }
-    .flow-step.failed { border-color: var(--red); color: #ffabb1; background: linear-gradient(135deg, #35181d, #21131a); }
+    .flow-step.complete { border-color: #2c8158; color: #d3f4df; box-shadow: inset 0 0 25px rgba(104,247,154,.055); }
+    .flow-step.complete::before { border-color: var(--green); background: var(--green); box-shadow: 0 0 12px rgba(104,247,154,.7); }
+    .flow-step.live { border-color: var(--cyan); color: #e1fffc; transform: translateY(-2px); box-shadow: inset 0 0 28px rgba(54,240,228,.09), 0 0 20px rgba(54,240,228,.11); }
+    .flow-step.live::before { border-color: var(--cyan); background: var(--cyan); box-shadow: 0 0 14px rgba(54,240,228,.8); animation: signal-pulse 1.2s ease-in-out infinite; }
+    .flow-step.warn { border-color: var(--amber); color: #ffe0a5; }
+    .flow-step.failed { border-color: var(--red); color: #ffbbc0; background: linear-gradient(145deg, #2d1116, #140c0f); }
+    .flow-step.failed::before { border-color: var(--red); background: var(--red); box-shadow: 0 0 14px rgba(255,93,104,.8); }
+    .node-top { display: flex; justify-content: space-between; align-items: center; gap: 7px; }
+    .node-index { color: #4f9694; font: 800 10px/1 var(--mono); }
+    .node-state { color: #5e777c; font: 800 8px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+    .flow-step.complete .node-state { color: var(--green); }
+    .flow-step.live .node-state { color: var(--cyan); }
+    .flow-step.failed .node-state { color: var(--red); }
+    .node-name { margin-top: 14px; color: currentColor; font: 850 11px/1.25 var(--mono); letter-spacing: .035em; text-transform: uppercase; }
+    .node-value { min-height: 31px; margin-top: 9px; color: #8ca2a7; font: 700 9px/1.45 var(--mono); overflow-wrap: anywhere; }
+    .flow-step.complete .node-value, .flow-step.live .node-value { color: #bad0d3; }
+    .flow-context { position: relative; z-index: 2; display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 8px; padding: 0 18px 17px; }
+    .context-cell { min-width: 0; padding: 8px 10px; border: 1px solid #1d3b41; border-radius: 7px; background: #071619; }
+    .context-cell small { display: block; color: #526c72; font: 800 7px/1.2 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+    .context-cell span { display: block; margin-top: 5px; color: #90a7ac; font: 700 9px/1.3 var(--mono); overflow-wrap: anywhere; }
+    .tamper-branch {
+      position: relative;
+      z-index: 2;
+      display: none;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin: 0 18px 17px 48%;
+      padding: 10px;
+      border: 1px solid #75303a;
+      border-radius: 9px;
+      background: rgba(43,14,19,.92);
+    }
+    .flow-board[data-state="tamper-failed"] .tamper-branch { display: grid; }
+    .branch-chip { padding: 8px; border: 1px solid #5e2a32; border-radius: 6px; color: #ff8f98; font: 800 8px/1.35 var(--mono); text-transform: uppercase; }
+    .branch-chip strong { display: block; margin-top: 4px; color: #ffd0d3; font-size: 9px; }
 
     .integrity-alert {
       display: grid;
@@ -471,13 +526,17 @@ _DASHBOARD = r'''<!doctype html>
 
     @media (max-width: 900px) {
       .masthead { grid-template-columns: 1fr; }
-      .runtime-stack { justify-content: start; padding-left: 106px; }
+      .runtime-stack { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       .hero { grid-template-columns: 1fr; }
       .hero-proof { justify-self: start; width: 100%; max-width: 620px; }
-      .flow-grid { grid-template-columns: 1fr; gap: 8px; }
-      .flow-step { min-height: 58px; }
-      .flow-step:not(:last-child)::after { top: 100%; left: 25px; width: 2px; height: 8px; background: var(--cyan); }
-      .flow-step:not(:last-child)::before { top: auto; bottom: -9px; left: 23px; right: auto; }
+      .flow-board { min-height: 0; }
+      .flow-wires { display: none; }
+      .flow-grid { grid-template-columns: 1fr; gap: 9px; padding: 18px; }
+      .flow-step { min-height: 78px; margin-left: 19px; }
+      .flow-step::before { top: 22px; left: -26px; }
+      .flow-step:not(:last-child)::after { content: ""; position: absolute; top: 34px; left: -22px; width: 2px; height: calc(100% + 12px); background: #26525a; }
+      .flow-context { grid-template-columns: 1fr; }
+      .tamper-branch { margin: 0 18px 17px; }
       .integrity-alert { grid-template-columns: 1fr; }
       .alert-metrics { grid-template-columns: repeat(3, 1fr); }
       .missions { grid-template-columns: 1fr; }
@@ -493,14 +552,12 @@ _DASHBOARD = r'''<!doctype html>
       .review-strip > span { max-width: 170px; }
       .strip-statuses .micro-status:nth-child(2) { display: none; }
       .masthead { padding: 22px 5px 14px; }
-      .brand-mark { width: 66px; }
-      .brand-mark span { font-size: 20px; }
-      .brand-lockup { gap: 12px; }
-      .brand-name .wordmark { font-size: clamp(25px, 9vw, 35px); }
-      .brand-name .submark { font-size: 9px; }
-      .runtime-stack { grid-template-columns: repeat(3, 1fr); padding-left: 0; }
-      .runtime-chip { min-width: 0; min-height: 55px; font-size: 9px; }
-      .runtime-chip.primary { min-height: 62px; }
+      .brand-lockup { width: 100%; height: 128px; }
+      .brand-source { width: 648px; height: 1152px; left: -5px; top: -44px; }
+      .brand-source-label { display: none; }
+      .runtime-stack { grid-template-columns: 1fr; }
+      .runtime-chip { min-height: 64px; }
+      .marks-note { text-align: left; }
       .hero { min-height: 0; padding: 35px 6px 22px; }
       h1 { font-size: clamp(40px, 12vw, 58px); }
       .quick-nav { top: 4px; }
@@ -513,6 +570,7 @@ _DASHBOARD = r'''<!doctype html>
       .meta { grid-template-columns: 1fr; }
       .alert-metrics { grid-template-columns: 1fr; }
       .alert-metric { min-height: 0; }
+      .tamper-branch { grid-template-columns: repeat(2, 1fr); }
       .evidence-grid { grid-template-columns: 1fr; }
       .evidence-list li { grid-template-columns: 1fr; }
       .hash { width: 100%; margin-left: 0; }
@@ -527,6 +585,11 @@ _DASHBOARD = r'''<!doctype html>
   </style>
 </head>
 <body>
+  <svg width="0" height="0" aria-hidden="true" style="position:absolute">
+    <symbol id="openai-blossom" viewBox="146 227 268 265">
+      <path fill="currentColor" d="M249.176 323.434V298.276C249.176 296.158 249.971 294.569 251.825 293.509L302.406 264.381C309.29 260.409 317.5 258.555 325.973 258.555C357.75 258.555 377.877 283.185 377.877 309.399C377.877 311.253 377.877 313.371 377.611 315.49L325.178 284.771C322.001 282.919 318.822 282.919 315.645 284.771L249.176 323.434ZM367.283 421.415V361.301C367.283 357.592 365.694 354.945 362.516 353.092L296.048 314.43L317.763 301.982C319.617 300.925 321.206 300.925 323.058 301.982L373.639 331.112C388.205 339.586 398.003 357.592 398.003 375.069C398.003 395.195 386.087 413.733 367.283 421.412V421.415ZM233.553 368.452L211.838 355.742C209.986 354.684 209.19 353.095 209.19 350.975V292.718C209.19 264.383 230.905 242.932 260.301 242.932C271.423 242.932 281.748 246.641 290.49 253.26L238.321 283.449C235.146 285.303 233.555 287.951 233.555 291.659V368.455L233.553 368.452ZM280.292 395.462L249.176 377.985V340.913L280.292 323.436L311.407 340.913V377.985L280.292 395.462ZM300.286 475.968C289.163 475.968 278.837 472.259 270.097 465.64L322.264 435.449C325.441 433.597 327.03 430.949 327.03 427.239V350.445L349.011 363.155C350.865 364.213 351.66 365.802 351.66 367.922V426.179C351.66 454.514 329.679 475.965 300.286 475.965V475.968ZM237.525 416.915L186.944 387.785C172.378 379.31 162.582 361.305 162.582 343.827C162.582 323.436 174.763 305.164 193.563 297.485V357.861C193.563 361.571 195.154 364.217 198.33 366.071L264.535 404.467L242.82 416.915C240.967 417.972 239.377 417.972 237.525 416.915ZM234.614 460.343C204.689 460.343 182.71 437.833 182.71 410.028C182.71 407.91 182.976 405.792 183.238 403.672L235.405 433.863C238.582 435.715 241.763 435.715 244.938 433.863L311.407 395.466V420.622C311.407 422.742 310.612 424.331 308.758 425.389L258.179 454.519C251.293 458.491 243.083 460.343 234.611 460.343H234.614ZM300.286 491.854C332.329 491.854 359.073 469.082 365.167 438.892C394.825 431.211 413.892 403.406 413.892 375.073C413.892 356.535 405.948 338.529 391.648 325.552C392.972 319.991 393.766 314.43 393.766 308.87C393.766 271.003 363.048 242.666 327.562 242.666C320.413 242.666 313.528 243.723 306.644 246.109C294.725 234.457 278.307 227.042 260.301 227.042C228.258 227.042 201.513 249.815 195.42 280.004C165.761 287.685 146.694 315.49 146.694 343.824C146.694 362.362 154.638 380.368 168.938 393.344C167.613 398.906 166.819 404.467 166.819 410.027C166.819 447.894 197.538 476.231 233.024 476.231C240.172 476.231 247.058 475.173 253.943 472.788C265.859 484.441 282.278 491.854 300.286 491.854Z"/>
+    </symbol>
+  </svg>
   <svg class="board-traces" viewBox="0 0 1440 2400" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
     <path class="trace" d="M0 180H160Q190 180 190 210V420Q190 450 220 450H390"/>
     <path class="trace hot" d="M0 220H120Q150 220 150 250V650Q150 680 180 680H390"/>
@@ -553,17 +616,14 @@ _DASHBOARD = r'''<!doctype html>
 
     <header class="masthead">
       <div class="brand-lockup">
-        <div class="brand-mark" aria-label="OsaTechGPT"><span>OS<br>A</span></div>
-        <div class="brand-name">
-          <div class="wordmark">OsaTech<em>GPT</em></div>
-          <div class="submark">PROOF SYSTEMS // MISSION CONTROL</div>
-          <span class="studio">AI STUDIO</span>
-        </div>
+        <img class="brand-source" src="__OSA_BRAND_DATA__" width="864" height="1536" alt="OsaTechGPT · Proof Systems · Mission Control">
+        <span class="brand-source-label">approved OsaTechGPT lockup</span>
       </div>
       <div class="runtime-stack" aria-label="Runtime providers">
-        <div class="runtime-chip">OPENAI<small>optional provider</small></div>
-        <div class="runtime-chip primary">CODEX<small>build runtime</small></div>
-        <div class="runtime-chip">APR<small id="runtime-version">v—</small></div>
+        <div class="runtime-chip"><svg aria-hidden="true"><use href="#openai-blossom"></use></svg><div><div class="runtime-name">OpenAI</div><small>official mark · provider</small></div></div>
+        <div class="runtime-chip"><svg aria-hidden="true"><use href="#openai-blossom"></use></svg><div><div class="runtime-name">ChatGPT</div><small>official mark · operator</small></div></div>
+        <div class="runtime-chip primary"><svg aria-hidden="true"><use href="#openai-blossom"></use></svg><div><div class="runtime-name">Codex</div><small>official mark · build runtime</small></div></div>
+        <div class="marks-note">OpenAI, ChatGPT and Codex marks belong to OpenAI · APR <span id="runtime-version">v—</span></div>
       </div>
     </header>
 
@@ -594,12 +654,35 @@ _DASHBOARD = r'''<!doctype html>
           <div><div class="eyebrow">Live execution narrative</div><h2>Evidence Control Room</h2></div>
           <div class="section-note">The interface visualizes state. Proof Bundle data and independent verification remain the source of truth.</div>
         </div>
-        <div class="flow-grid" id="flow-grid">
-          <div class="flow-step" data-stage="ready"><span>01</span>Mission ready</div>
-          <div class="flow-step" data-stage="executing"><span>02</span>Executing</div>
-          <div class="flow-step" data-stage="acceptance"><span>03</span>Acceptance</div>
-          <div class="flow-step" data-stage="proof"><span>04</span>Building proof</div>
-          <div class="flow-step" data-stage="verified"><span>05</span>Local verified</div>
+        <div class="flow-board" id="flow-board" data-state="idle" aria-label="Backend-driven proof flow">
+          <svg class="flow-wires" viewBox="0 0 1000 278" preserveAspectRatio="none" aria-hidden="true">
+            <path class="bus-base" d="M108 52V72H892V52"/>
+            <path class="bus-base-thin" d="M108 72H892"/>
+            <path class="bus-progress" d="M108 72H892"/>
+            <path class="tamper-wire" d="M696 72V216H962"/>
+            <circle class="flow-via" cx="108" cy="72" r="6"/><circle class="flow-via" cx="304" cy="72" r="6"/>
+            <circle class="flow-via" cx="500" cy="72" r="6"/><circle class="flow-via" cx="696" cy="72" r="6"/>
+            <circle class="flow-via" cx="892" cy="72" r="6"/><circle class="flow-via" cx="696" cy="216" r="6"/>
+            <circle class="flow-packet" r="6"><animateMotion dur="2.4s" repeatCount="indefinite" path="M108 72H892"/></circle>
+          </svg>
+          <div class="flow-grid" id="flow-grid">
+            <div class="flow-step" data-stage="ready"><div class="node-top"><span class="node-index">01</span><span class="node-state">waiting</span></div><div class="node-name">Mission manifest</div><div class="node-value" id="flow-ready-value">Checked-in manifest only</div></div>
+            <div class="flow-step" data-stage="executing"><div class="node-top"><span class="node-index">02</span><span class="node-state">waiting</span></div><div class="node-name">Controlled execution</div><div class="node-value" id="flow-executing-value">Provider and backend pending</div></div>
+            <div class="flow-step" data-stage="acceptance"><div class="node-top"><span class="node-index">03</span><span class="node-state">waiting</span></div><div class="node-name">Acceptance replay</div><div class="node-value" id="flow-acceptance-value">Deterministic checks pending</div></div>
+            <div class="flow-step" data-stage="proof"><div class="node-top"><span class="node-index">04</span><span class="node-state">waiting</span></div><div class="node-name">Proof Bundle</div><div class="node-value" id="flow-proof-value">Hashes and Merkle root pending</div></div>
+            <div class="flow-step" data-stage="verified"><div class="node-top"><span class="node-index">05</span><span class="node-state">waiting</span></div><div class="node-name">Independent verifier</div><div class="node-value" id="flow-verified-value">No verified bundle selected</div></div>
+          </div>
+          <div class="flow-context">
+            <div class="context-cell"><small>Mission / source</small><span id="flow-source">No mission selected</span></div>
+            <div class="context-cell"><small>Run / execution</small><span id="flow-run">No run selected</span></div>
+            <div class="context-cell"><small>Cryptographic output</small><span id="flow-hash">No bundle hash</span></div>
+          </div>
+          <div class="tamper-branch" id="tamper-branch" aria-label="Disposable tamper copy flow">
+            <div class="branch-chip">01 · Copy<strong>Disposable</strong></div>
+            <div class="branch-chip">02 · Mutation<strong id="branch-case">Artifact</strong></div>
+            <div class="branch-chip">03 · Verifier<strong>Recomputed</strong></div>
+            <div class="branch-chip">04 · Result<strong id="branch-result">Failed</strong></div>
+          </div>
         </div>
         <div class="integrity-alert" id="integrity-alert" aria-live="polite">
           <div>
@@ -634,9 +717,9 @@ _DASHBOARD = r'''<!doctype html>
       </section>
 
       <div class="command-dock">
-        <div class="dock-brand">⬡ CODEX LABS</div>
+        <div class="dock-brand"><svg aria-hidden="true" viewBox="146 227 268 265" style="width:22px;height:22px;vertical-align:middle;margin-right:8px"><use href="#openai-blossom"></use></svg>CODEX LABS</div>
         <div class="dock-command">osa@apr-mission-control:~$ verify --manifest-only</div>
-        <div class="dock-power">⬡ POWERED BY CODEX</div>
+        <div class="dock-power">OPENAI · CHATGPT · CODEX</div>
       </div>
     </main>
 
@@ -665,18 +748,62 @@ _DASHBOARD = r'''<!doctype html>
       return body;
     }
 
-    function setFlow(state) {
-      const stages = [...document.querySelectorAll('[data-stage]')];
-      stages.forEach(stage => stage.classList.remove('active', 'failed'));
-      if (state === 'running') {
-        stages.slice(0, 2).forEach(stage => stage.classList.add('active'));
+    const flowStages = () => [...document.querySelectorAll('[data-stage]')];
+    const shortHash = (value, length = 28) => value ? `${String(value).slice(0, length)}${String(value).length > length ? '…' : ''}` : 'not recorded';
+
+    function setNodeState(node, state, label) {
+      node.className = `flow-step ${state || ''}`.trim();
+      node.querySelector('.node-state').textContent = label;
+    }
+
+    function setFlow(state, context = {}) {
+      const board = $('#flow-board');
+      const stages = flowStages();
+      board.dataset.state = state;
+      stages.forEach(stage => setNodeState(stage, '', 'waiting'));
+
+      if (state === 'ready' || state === 'idle') {
+        setNodeState(stages[0], state === 'ready' ? 'complete' : 'live', state === 'ready' ? 'available' : 'waiting');
+      } else if (state === 'running') {
+        setNodeState(stages[0], 'complete', 'validated');
+        setNodeState(stages[1], 'live', 'executing');
       } else if (state === 'failed') {
-        stages.slice(0, 4).forEach(stage => stage.classList.add('active'));
-        stages[4].classList.add('failed');
-      } else if (state === 'verified') {
-        stages.forEach(stage => stage.classList.add('active'));
-      } else {
-        stages[0].classList.add('active');
+        stages.slice(0, 4).forEach(stage => setNodeState(stage, 'complete', 'recorded'));
+        setNodeState(stages[4], 'failed', 'failed');
+      } else if (state === 'verified' || state === 'tamper-failed') {
+        stages.forEach(stage => setNodeState(stage, 'complete', 'verified'));
+      }
+
+      if (context.source) $('#flow-source').textContent = context.source;
+      if (context.run) $('#flow-run').textContent = context.run;
+      if (context.hash) $('#flow-hash').textContent = context.hash;
+    }
+
+    function applyEvidenceFlow(detail) {
+      const evidence = detail.evidence || {};
+      const run = detail.summary || {};
+      const provider = evidence.provider || {};
+      const acceptance = evidence.acceptance || evidence.validation || {checks: []};
+      const checks = acceptance.checks || [];
+      const passed = checks.filter(check => check.passed).length;
+      const artifacts = evidence.artifacts || [];
+      const events = evidence.events || [];
+      const integrity = evidence.integrity || {};
+      const verified = run.proof_status === 'LOCAL_VERIFIED';
+
+      setFlow(verified ? 'verified' : 'failed', {
+        source: `${run.mission_id || 'mission'} · checked-in manifest`,
+        run: `${run.run_id || 'run'} · ${run.backend || 'backend'}`,
+        hash: `bundle ${shortHash(integrity.bundle_hash)}`,
+      });
+      $('#flow-ready-value').textContent = `${run.mission_id || 'mission'} · manifest accepted`;
+      $('#flow-executing-value').textContent = `${provider.provider || run.provider || 'provider'} · ${provider.resolved_model || run.backend || 'runtime'}`;
+      $('#flow-acceptance-value').textContent = `${passed}/${checks.length} deterministic checks · ${run.mission_status || 'recorded'}`;
+      $('#flow-proof-value').textContent = `${artifacts.length} artifacts · ${events.length} chained events · ${shortHash(integrity.event_merkle_root, 15)}`;
+      $('#flow-verified-value').textContent = `${run.proof_status || 'UNKNOWN'} · ${run.anchor_status || 'UNANCHORED'}`;
+      if (checks.length && passed !== checks.length) {
+        const acceptanceNode = document.querySelector('[data-stage="acceptance"]');
+        setNodeState(acceptanceNode, 'warn', `${passed}/${checks.length} passed`);
       }
     }
 
@@ -695,7 +822,10 @@ _DASHBOARD = r'''<!doctype html>
       }
       const verified = run.proof_status === 'LOCAL_VERIFIED';
       panel.classList.add(verified ? 'verified' : 'failed');
-      setFlow(verified ? 'verified' : 'failed');
+      setFlow(verified ? 'verified' : 'failed', {
+        source: run.mission_id || 'recorded mission',
+        run: run.run_id || 'recorded run',
+      });
       $('#alert-kicker').textContent = verified ? 'Independent verifier' : 'Integrity anomaly detected';
       $('#alert-title').textContent = verified ? 'LOCAL_VERIFIED' : 'INTEGRITY FAILED';
       $('#alert-copy').textContent = verified
@@ -709,13 +839,15 @@ _DASHBOARD = r'''<!doctype html>
     function setTamperResult(result) {
       const panel = $('#integrity-alert');
       panel.className = 'integrity-alert failed';
-      setFlow('failed');
+      setFlow('tamper-failed');
       $('#alert-kicker').textContent = 'Tamper Lab · mutation detected';
       $('#alert-title').textContent = 'INTEGRITY FAILED';
       $('#alert-copy').textContent = result.errors?.[0] || 'The disposable copy no longer matches its recorded evidence.';
       $('#alert-case').textContent = String(result.case || 'UNKNOWN').toUpperCase();
       $('#alert-copy-status').textContent = result.status || 'FAILED';
       $('#alert-original').textContent = result.original_preserved ? 'PRESERVED' : 'CHANGED';
+      $('#branch-case').textContent = String(result.case || 'unknown').toUpperCase();
+      $('#branch-result').textContent = result.status || 'FAILED';
       $('#integrity-status').textContent = 'Integrity failed';
       $('#integrity-status').className = 'micro-status bad';
       panel.scrollIntoView({behavior: 'smooth', block: 'center'});
@@ -754,6 +886,8 @@ _DASHBOARD = r'''<!doctype html>
       const node = $('#evidence');
       node.innerHTML = evidenceView(body);
       node.className = 'card evidence show';
+      setIntegrityFromRun(body.summary);
+      applyEvidenceFlow(body);
       if (scroll) node.scrollIntoView({behavior:'smooth', block:'start'});
     }
 
@@ -778,6 +912,14 @@ _DASHBOARD = r'''<!doctype html>
         $('#missions').innerHTML = data.missions.length ? data.missions.map(mission => missionCard(mission, ready, data.service.openai_configured)).join('') : '<div class="card empty">No manifests in the configured directory.</div>';
         $('#runs').innerHTML = data.runs.length ? data.runs.map(runRow).join('') : '<div class="empty">No runs yet. Start an approved mission above.</div>';
         setIntegrityFromRun(latest);
+        if (!latest) {
+          const validMissions = data.missions.filter(mission => mission.valid);
+          setFlow(validMissions.length ? 'ready' : 'idle', {
+            source: validMissions.length ? `${validMissions.length} approved manifest${validMissions.length === 1 ? '' : 's'}` : 'No approved manifest',
+            run: 'No run selected',
+            hash: 'No bundle hash',
+          });
+        }
         if (latest && !selectedRun) await loadEvidence(latest.run_id, false);
       } catch (error) {
         toast(error.message, true);
@@ -798,7 +940,16 @@ _DASHBOARD = r'''<!doctype html>
         } else if (runButton) {
           if (busy) return;
           busy = true;
-          setFlow('running');
+          setFlow('running', {
+            source: `${runButton.dataset.run} · manifest validated`,
+            run: 'API request in progress',
+            hash: 'Proof Bundle not sealed yet',
+          });
+          $('#flow-ready-value').textContent = `${runButton.dataset.run} · manifest validated`;
+          $('#flow-executing-value').textContent = 'Provider call and controlled materialization in progress';
+          $('#flow-acceptance-value').textContent = 'Will begin after execution output is recorded';
+          $('#flow-proof-value').textContent = 'Will seal only after deterministic acceptance';
+          $('#flow-verified-value').textContent = 'Independent verification not started';
           runButton.disabled = true;
           runButton.textContent = 'Mission running…';
           const body = await api('/api/runs', {method:'POST', headers:{'Content-Type':'application/json','X-APR-Token':token}, body:JSON.stringify({mission_path:runButton.dataset.run})});
@@ -834,4 +985,15 @@ _DASHBOARD = r'''<!doctype html>
 def render_mission_control(csrf_token: str) -> str:
     """Render the operator dashboard with a safely serialized CSRF token."""
 
-    return _DASHBOARD.replace("__APR_CSRF_TOKEN__", json.dumps(csrf_token))
+    if _OSA_BRAND_BASE64:
+        brand_data_uri = f"data:image/jpeg;base64,{_OSA_BRAND_BASE64}"
+    else:
+        try:
+            encoded_brand = base64.b64encode(_OSA_BRAND_PATH.read_bytes()).decode("ascii")
+            brand_data_uri = f"data:image/jpeg;base64,{encoded_brand}"
+        except OSError:
+            brand_data_uri = ""
+    return (
+        _DASHBOARD.replace("__APR_CSRF_TOKEN__", json.dumps(csrf_token))
+        .replace("__OSA_BRAND_DATA__", brand_data_uri)
+    )
