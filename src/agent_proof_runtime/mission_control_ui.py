@@ -6,12 +6,6 @@ import base64
 import json
 from pathlib import Path
 
-try:
-    from .osa_brand_source import JPEG_BASE64 as _OSA_BRAND_BASE64
-except ImportError:  # Local design preview before the generated module is present.
-    _OSA_BRAND_BASE64 = ""
-
-
 _OSA_BRAND_PATH = Path(__file__).with_name("assets") / "osa-brand-source.jpg"
 
 
@@ -985,9 +979,11 @@ _DASHBOARD = r'''<!doctype html>
 def render_mission_control(csrf_token: str) -> str:
     """Render the operator dashboard with a safely serialized CSRF token."""
 
-    if _OSA_BRAND_BASE64:
-        brand_data_uri = f"data:image/jpeg;base64,{_OSA_BRAND_BASE64}"
-    else:
+    try:
+        from .osa_brand_source import JPEG_BASE64
+
+        brand_data_uri = f"data:image/jpeg;base64,{JPEG_BASE64}"
+    except ImportError:  # Local design preview before the generated module is present.
         try:
             encoded_brand = base64.b64encode(_OSA_BRAND_PATH.read_bytes()).decode("ascii")
             brand_data_uri = f"data:image/jpeg;base64,{encoded_brand}"
