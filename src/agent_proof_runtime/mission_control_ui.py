@@ -16,6 +16,7 @@ _DASHBOARD = r'''<!doctype html>
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#050d10">
   <title>OsaTechGPT · APR Mission Control</title>
+  <link rel="icon" href="data:,">
   <style>
     :root {
       color-scheme: dark;
@@ -516,6 +517,62 @@ _DASHBOARD = r'''<!doctype html>
     .dock-command { min-width: 0; padding: 9px 12px; border: 1px solid #506c8d; border-radius: 7px; background: rgba(184,213,255,.13); color: #7af4d9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .dock-power { text-align: right; color: #aabdc7; }
 
+    .studio { position: relative; margin: 16px 0; padding: 26px; border: 1px solid #31525b; border-radius: 14px; background: linear-gradient(145deg, rgba(10,25,29,.98), rgba(7,13,18,.98)); box-shadow: inset 0 1px rgba(255,255,255,.035), 0 25px 90px rgba(0,0,0,.24); overflow: hidden; }
+    .studio::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle at 82% 0, rgba(54,240,228,.09), transparent 32%); }
+    .studio-intro { position: relative; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 20px; align-items: end; }
+    .studio-intro h2 { max-width: 820px; margin: 7px 0 10px; font-size: clamp(28px,4vw,50px); line-height: 1.02; letter-spacing: -.04em; }
+    .studio-copy { max-width: 760px; margin: 0; color: #95a9ae; }
+    .studio-badges { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+    .studio-badge { padding: 7px 9px; border: 1px solid #28635f; border-radius: 999px; background: #0a2a29; color: #73e7d5; font: 800 9px/1 var(--mono); letter-spacing: .1em; }
+    .studio-form { position: relative; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 12px; margin-top: 24px; padding: 14px; border: 1px solid #273f46; border-radius: 10px; background: rgba(3,10,13,.72); }
+    .studio-form label { grid-column: 1/-1; color: #7c999f; font: 800 9px/1.3 var(--mono); letter-spacing: .16em; text-transform: uppercase; }
+    .studio-form textarea { grid-column: 1/-1; width: 100%; min-height: 112px; resize: vertical; padding: 14px; border: 1px solid #34535c; border-radius: 7px; outline: 0; background: #071116; color: #dce9eb; font: 500 14px/1.55 var(--sans); }
+    .studio-form textarea:focus { border-color: #36f0e4; box-shadow: 0 0 0 3px rgba(54,240,228,.08); }
+    .studio-form button { min-height: 42px; }
+    .studio-preset { justify-self: start; border-color: #3c5a62; background: #112127; color: #adc0c5; box-shadow: none; }
+    .studio-start { justify-self: end; min-width: 180px; }
+    .studio-status-bar { position: relative; display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: 13px; align-items: center; margin-top: 18px; }
+    .studio-progress { height: 6px; overflow: hidden; border-radius: 999px; background: #172b31; }
+    .studio-progress > span { display: block; width: 0; height: 100%; background: linear-gradient(90deg,#36f0e4,#77a9ff); box-shadow: 0 0 14px rgba(54,240,228,.5); transition: width .25s ease; }
+    .studio-current { color: #9eb1b6; font: 800 9px/1.3 var(--mono); text-transform: uppercase; letter-spacing: .1em; }
+    .studio-hash { max-width: 240px; color: #6e858b; font: 700 9px/1.3 var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .studio-zones { position: relative; display: grid; grid-template-columns: minmax(0,4fr) minmax(210px,1fr); gap: 14px; margin-top: 18px; }
+    .agent-zone, .trust-zone { padding: 14px; border-radius: 10px; }
+    .agent-zone { border: 1px solid #283b43; background: rgba(8,17,22,.8); }
+    .trust-zone { border: 1px solid #327b71; background: linear-gradient(180deg,rgba(10,48,45,.72),rgba(5,24,25,.88)); box-shadow: inset 0 0 30px rgba(54,240,228,.04); }
+    .zone-label { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 11px; color: #72898f; font: 800 9px/1.3 var(--mono); letter-spacing: .15em; text-transform: uppercase; }
+    .agent-pipeline { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; }
+    .studio-agent { position: relative; min-height: 152px; padding: 14px; border: 1px solid #2b3e46; border-radius: 7px; background: #0a1318; overflow: visible; transition: border-color .2s ease, background .2s ease; }
+    .studio-agent:not(:last-child)::after { content: ""; position: absolute; z-index: 1; top: 38px; left: calc(100% + 1px); width: 9px; height: 1px; background: #416069; }
+    .studio-agent .agent-index { color: #577078; font: 800 9px var(--mono); }
+    .studio-agent h3 { min-height: 35px; margin: 17px 0 8px; font-size: 14px; line-height: 1.2; }
+    .studio-agent .agent-status { color: #83979d; font: 800 9px/1.4 var(--mono); letter-spacing: .08em; }
+    .studio-agent .agent-hash { display: block; margin-top: 12px; color: #526a70; font: 700 8px/1.4 var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .studio-agent[data-status="working"] { border-color: #4e8fff; background: #0d1c2a; box-shadow: 0 0 20px rgba(78,143,255,.12); }
+    .studio-agent[data-status="completed"] { border-color: #286c5f; }
+    .studio-agent[data-status="handing_off"] { border-color: #36f0e4; box-shadow: 0 0 20px rgba(54,240,228,.14); }
+    .studio-agent[data-status="failed"] { border-color: #a93d48; background: #211015; }
+    .handoff-packet { position: absolute; z-index: 3; top: 34px; right: -5px; width: 8px; height: 8px; border-radius: 2px; background: #36f0e4; box-shadow: 0 0 12px #36f0e4; opacity: 0; }
+    .studio-agent[data-status="handing_off"] .handoff-packet { opacity: 1; animation: studio-packet .65s ease-in-out infinite; }
+    @keyframes studio-packet { 0%{transform:translateX(-5px);opacity:0} 30%{opacity:1} 100%{transform:translateX(12px);opacity:0} }
+    .trust-gate { min-height: 152px; padding: 15px; border: 1px solid #3d9185; border-radius: 8px; background: repeating-linear-gradient(135deg,rgba(54,240,228,.025) 0 8px,transparent 8px 16px); }
+    .trust-gate .gate-label { color: #73e7d5; font: 900 10px/1.3 var(--mono); letter-spacing: .13em; }
+    .trust-gate h3 { margin: 22px 0 7px; font-size: 18px; }
+    .trust-gate p { margin: 0; color: #8fa6aa; font-size: 11px; }
+    .gate-status { display: inline-flex; margin-top: 16px; padding: 6px 8px; border: 1px solid #326c65; background: #092522; color: #73e7d5; font: 900 9px/1 var(--mono); letter-spacing: .08em; }
+    .studio-bottom { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+    .studio-timeline, .studio-result { min-height: 146px; padding: 14px; border: 1px solid #283e45; border-radius: 9px; background: rgba(5,13,17,.76); }
+    .studio-timeline ol { max-height: 190px; margin: 12px 0 0; padding: 0; list-style: none; overflow-y: auto; }
+    .studio-timeline li { display: grid; grid-template-columns: 64px minmax(0,1fr); gap: 9px; padding: 7px 0; border-top: 1px solid #172a30; color: #91a5aa; font: 700 9px/1.4 var(--mono); }
+    .studio-timeline time { color: #536c73; }
+    .studio-result-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-top: 12px; }
+    .studio-result-grid div { padding: 10px; border: 1px solid #21373d; background: #081419; }
+    .studio-result-grid small { display: block; color: #587078; font: 800 8px var(--mono); letter-spacing: .1em; }
+    .studio-result-grid strong { display: block; margin-top: 7px; color: #9eb2b7; font: 800 10px var(--mono); overflow-wrap: anywhere; }
+    .studio-result.complete { border-color: #2b6c61; }
+    .studio-result.complete .result-title { color: #73e7d5; }
+    .result-title { margin: 9px 0 0; font-size: 22px; }
+
     .toast { position: fixed; right: 20px; bottom: 20px; z-index: 50; width: min(430px, calc(100% - 40px)); padding: 14px 16px; border: 1px solid #37d9d0; border-radius: 10px; background: #0c2529; color: #d9f9f6; box-shadow: 0 18px 70px #000b, 0 0 25px rgba(54,240,228,.12); font: 700 11px/1.5 var(--mono); opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(150%); transition: transform .22s ease, opacity .18s ease, visibility 0s linear .22s; }
     .toast.show { opacity: 1; visibility: visible; transform: translateY(0); transition-delay: 0s; }
     .toast.error { border-color: #a93d48; background: #321219; color: #ffd0d3; }
@@ -541,6 +598,10 @@ _DASHBOARD = r'''<!doctype html>
       .run > :not(:first-child):not(:last-child) { display: none; }
       .command-dock { grid-template-columns: 1fr; }
       .dock-power { text-align: left; }
+      .studio-intro, .studio-zones, .studio-bottom { grid-template-columns: 1fr; }
+      .studio-badges { justify-content: flex-start; }
+      .agent-pipeline { grid-template-columns: repeat(2,minmax(0,1fr)); }
+      .studio-agent:nth-child(2)::after { display: none; }
     }
 
     @media (max-width: 640px) {
@@ -573,6 +634,11 @@ _DASHBOARD = r'''<!doctype html>
       .hash { width: 100%; margin-left: 0; }
       .section-block::before, .section-block::after, .content-section::before, .content-section::after { display: none; }
       .board-traces { opacity: .2; }
+      .studio { padding: 14px; }
+      .studio-form, .studio-status-bar { grid-template-columns: 1fr; }
+      .studio-preset, .studio-start { justify-self: stretch; }
+      .agent-pipeline, .studio-result-grid { grid-template-columns: 1fr; }
+      .studio-agent::after { display: none; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -645,12 +711,54 @@ _DASHBOARD = r'''<!doctype html>
       </section>
 
       <nav class="quick-nav" aria-label="Mission Control sections">
+        <a href="#mission-studio">Mission Studio</a><span class="slash">/</span>
         <a href="#missions-section">Missions</a><span class="slash">/</span>
         <a href="#runs-section">Runs</a><span class="slash">/</span>
         <a href="#control-room">Control Room</a><span class="slash">/</span>
         <a href="#evidence">Latest Proof</a>
         <div class="nav-tools"><button class="icon-button" type="button" data-refresh aria-label="Refresh evidence">↻</button></div>
       </nav>
+
+      <section class="studio" id="mission-studio" aria-labelledby="studio-title">
+        <div class="studio-intro">
+          <div>
+            <div class="eyebrow">APR MISSION STUDIO</div>
+            <h2 id="studio-title">Describe the work. Watch the agents build. Verify the result.</h2>
+            <p class="studio-copy">The agent pipeline produces the artifact. APR independently records and verifies the evidence.</p>
+          </div>
+          <div class="studio-badges"><span class="studio-badge">FIXTURE MODE</span><span class="studio-badge">NO API KEY</span></div>
+        </div>
+        <div class="studio-form">
+          <label for="studio-brief">Verified website build brief</label>
+          <textarea id="studio-brief" maxlength="2000" placeholder="Create a dark landing page for an AI security company with a hero, three features, and a strong call to action."></textarea>
+          <button class="studio-preset" id="studio-preset" type="button">Use preset example</button>
+          <button class="studio-start" id="studio-start" type="button" disabled>START MISSION</button>
+        </div>
+        <div class="studio-status-bar" aria-live="polite">
+          <div class="studio-progress" aria-label="Mission progress"><span id="studio-progress"></span></div>
+          <span class="studio-current" id="studio-current">READY · 0%</span>
+          <code class="studio-hash" id="studio-hash">No stage output recorded</code>
+        </div>
+        <div class="studio-zones">
+          <div class="agent-zone">
+            <div class="zone-label"><span>AGENT ORCHESTRATION</span><span>Produces the work</span></div>
+            <div class="agent-pipeline" id="studio-agents">
+              <article class="studio-agent" data-studio-agent="planner" data-status="ready"><span class="agent-index">01</span><h3>MISSION PLANNER</h3><span class="agent-status">READY</span><code class="agent-hash">No output hash</code><span class="handoff-packet"></span></article>
+              <article class="studio-agent" data-studio-agent="research" data-status="ready"><span class="agent-index">02</span><h3>RESEARCH AGENT</h3><span class="agent-status">READY</span><code class="agent-hash">No output hash</code><span class="handoff-packet"></span></article>
+              <article class="studio-agent" data-studio-agent="builder" data-status="ready"><span class="agent-index">03</span><h3>WEBSITE BUILDER</h3><span class="agent-status">READY</span><code class="agent-hash">No output hash</code><span class="handoff-packet"></span></article>
+              <article class="studio-agent" data-studio-agent="qa" data-status="ready"><span class="agent-index">04</span><h3>QA AGENT</h3><span class="agent-status">READY</span><code class="agent-hash">No output hash</code><span class="handoff-packet"></span></article>
+            </div>
+          </div>
+          <div class="trust-zone">
+            <div class="zone-label"><span>APR TRUST GATE</span><span>Deterministic boundary</span></div>
+            <div class="trust-gate"><div class="gate-label">NOT AN AGENT</div><h3>APR TRUST GATE</h3><p>The agents produce the artifact. APR enforces the contract and verifies the recorded evidence.</p><span class="gate-status" id="studio-apr-status">AWAITING ARTIFACT</span></div>
+          </div>
+        </div>
+        <div class="studio-bottom">
+          <div class="studio-timeline"><div class="zone-label"><span>BACKEND EVENT TIMELINE</span><span id="studio-event-count">0 events</span></div><ol id="studio-events"><li><time>—</time><span>Awaiting mission start</span></li></ol></div>
+          <div class="studio-result" id="studio-result"><div class="zone-label"><span>INDEPENDENT VERIFIER</span><span>Recomputes proof integrity</span></div><h3 class="result-title" id="studio-result-title">AWAITING ARTIFACT</h3><div class="studio-result-grid"><div><small>MISSION</small><strong id="studio-mission-result">—</strong></div><div><small>PROOF</small><strong id="studio-proof-result">—</strong></div><div><small>ANCHOR</small><strong id="studio-anchor-result">UNANCHORED</strong></div></div></div>
+        </div>
+      </section>
 
       <section class="control-room section-block" id="control-room">
         <div class="section-head">
@@ -736,6 +844,8 @@ _DASHBOARD = r'''<!doctype html>
     const esc = (value) => String(value ?? '').replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
     let busy = false;
     let selectedRun = null;
+    let studioSessionId = null;
+    let studioPollTimer = null;
 
     function toast(message, error = false) {
       const node = $('#toast');
@@ -750,6 +860,90 @@ _DASHBOARD = r'''<!doctype html>
       if (!response.ok || !body.ok) throw new Error(body.error || `HTTP ${response.status}`);
       return body;
     }
+
+    const studioBrief = $('#studio-brief');
+    const studioStart = $('#studio-start');
+    const studioPreset = 'Create a dark landing page for an AI security company with a hero section, three product features, and a strong call to action.';
+    const normalizedStudioBrief = () => studioBrief.value.replace(/\s+/g, ' ').trim();
+
+    function validateStudioBrief() {
+      const value = normalizedStudioBrief();
+      studioStart.disabled = Boolean(studioSessionId) || value.length < 10 || value.length > 2000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(studioBrief.value);
+    }
+
+    function renderStudio(session) {
+      $('#studio-progress').style.width = `${session.progress || 0}%`;
+      $('#studio-current').textContent = `${String(session.current_stage || session.state || 'ready').replaceAll('_',' ').toUpperCase()} · ${session.progress || 0}%`;
+      $('#studio-hash').textContent = session.current_output_hash || 'No stage output recorded';
+      $('#studio-apr-status').textContent = session.apr?.status || 'AWAITING ARTIFACT';
+      (session.agents || []).forEach(agent => {
+        const card = document.querySelector(`[data-studio-agent="${agent.stage_id}"]`);
+        if (!card) return;
+        card.dataset.status = agent.status;
+        card.querySelector('.agent-status').textContent = String(agent.status).replaceAll('_',' ').toUpperCase();
+        card.querySelector('.agent-hash').textContent = agent.output_hash || 'No output hash';
+      });
+      const events = session.events || [];
+      $('#studio-event-count').textContent = `${events.length} event${events.length === 1 ? '' : 's'}`;
+      $('#studio-events').innerHTML = events.map(item => `<li><time>${esc(String(item.timestamp || '').slice(11,19) || '—')}</time><span>${esc(item.type)}${item.output_hash ? ` · ${esc(shortHash(item.output_hash,16))}` : ''}</span></li>`).join('') || '<li><time>—</time><span>Awaiting mission start</span></li>';
+      $('#studio-events').scrollTop = $('#studio-events').scrollHeight;
+      $('#studio-mission-result').textContent = session.mission_status || '—';
+      $('#studio-proof-result').textContent = session.proof_status || '—';
+      $('#studio-anchor-result').textContent = session.anchor_status || 'UNANCHORED';
+      const terminal = session.state === 'completed' || session.state === 'failed';
+      $('#studio-result-title').textContent = session.state === 'completed' ? 'ARTIFACT READY' : (session.state === 'failed' ? 'FAILED' : 'AWAITING VERIFIER');
+      $('#studio-result').classList.toggle('complete', session.state === 'completed');
+      if (terminal) {
+        window.clearTimeout(studioPollTimer);
+        studioPollTimer = null;
+        studioSessionId = null;
+        validateStudioBrief();
+      }
+      return terminal;
+    }
+
+    async function pollStudio() {
+      if (!studioSessionId) return;
+      try {
+        const body = await api(`/api/studio/${encodeURIComponent(studioSessionId)}`);
+        const terminal = renderStudio(body.session);
+        if (terminal) {
+          if (body.session.apr_run_id) {
+            selectedRun = body.session.apr_run_id;
+            await refresh();
+            await loadEvidence(body.session.apr_run_id, false);
+          }
+          toast(`Mission Studio: ${body.session.proof_status || body.session.state}`, body.session.state === 'failed');
+          return;
+        }
+        studioPollTimer = window.setTimeout(pollStudio, 180);
+      } catch (error) {
+        studioSessionId = null;
+        validateStudioBrief();
+        toast(error.message, true);
+      }
+    }
+
+    studioBrief.addEventListener('input', validateStudioBrief);
+    $('#studio-preset').addEventListener('click', () => {
+      studioBrief.value = studioPreset;
+      validateStudioBrief();
+      studioBrief.focus();
+    });
+    studioStart.addEventListener('click', async () => {
+      if (studioStart.disabled) return;
+      studioStart.disabled = true;
+      try {
+        const body = await api('/api/studio/start', {method:'POST', headers:{'Content-Type':'application/json','X-APR-Token':token}, body:JSON.stringify({mission_type:'verified_website_build',brief:normalizedStudioBrief()})});
+        studioSessionId = body.session.session_id;
+        renderStudio(body.session);
+        studioPollTimer = window.setTimeout(pollStudio, 120);
+      } catch (error) {
+        studioSessionId = null;
+        validateStudioBrief();
+        toast(error.message, true);
+      }
+    });
 
     const flowStages = () => [...document.querySelectorAll('[data-stage]')];
     const shortHash = (value, length = 28) => value ? `${String(value).slice(0, length)}${String(value).length > length ? '…' : ''}` : 'not recorded';
