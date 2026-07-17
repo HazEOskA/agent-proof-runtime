@@ -528,6 +528,8 @@ _DASHBOARD = r'''<!doctype html>
     .studio-form label { grid-column: 1/-1; color: #7c999f; font: 800 9px/1.3 var(--mono); letter-spacing: .16em; text-transform: uppercase; }
     .studio-form textarea { grid-column: 1/-1; width: 100%; min-height: 112px; resize: vertical; padding: 14px; border: 1px solid #34535c; border-radius: 7px; outline: 0; background: #071116; color: #dce9eb; font: 500 14px/1.55 var(--sans); }
     .studio-form textarea:focus { border-color: #36f0e4; box-shadow: 0 0 0 3px rgba(54,240,228,.08); }
+    .studio-mode { display: flex; align-items: center; gap: 9px; justify-self: start; color: #7c999f; font: 800 9px/1.3 var(--mono); letter-spacing: .08em; }
+    .studio-mode select { min-height: 42px; padding: 0 34px 0 11px; border: 1px solid #34535c; border-radius: 6px; background: #071116; color: #dce9eb; font: 800 10px var(--mono); }
     .studio-form button { min-height: 42px; }
     .studio-preset { justify-self: start; border-color: #3c5a62; background: #112127; color: #adc0c5; box-shadow: none; }
     .studio-start { justify-self: end; min-width: 180px; }
@@ -726,11 +728,12 @@ _DASHBOARD = r'''<!doctype html>
             <h2 id="studio-title">Describe the work. Watch the agents build. Verify the result.</h2>
             <p class="studio-copy">The agent pipeline produces the artifact. APR independently records and verifies the evidence.</p>
           </div>
-          <div class="studio-badges"><span class="studio-badge">FIXTURE MODE</span><span class="studio-badge">NO API KEY</span></div>
+          <div class="studio-badges"><span class="studio-badge" id="studio-provider-badge">FIXTURE MODE</span><span class="studio-badge" id="studio-model-badge">NO API KEY REQUIRED</span></div>
         </div>
         <div class="studio-form">
           <label for="studio-brief">Verified website build brief</label>
           <textarea id="studio-brief" maxlength="2000" placeholder="Create a dark landing page for an AI security company with a hero, three features, and a strong call to action."></textarea>
+          <div class="studio-mode"><label for="studio-provider">Provider</label><select id="studio-provider"><option value="fixture">FIXTURE</option><option value="openai" disabled>LIVE GPT-5.6</option></select><span id="studio-provider-status">FIXTURE · OFFLINE</span></div>
           <button class="studio-preset" id="studio-preset" type="button">Use preset example</button>
           <button class="studio-start" id="studio-start" type="button" disabled>START MISSION</button>
         </div>
@@ -863,12 +866,21 @@ _DASHBOARD = r'''<!doctype html>
 
     const studioBrief = $('#studio-brief');
     const studioStart = $('#studio-start');
+    const studioProvider = $('#studio-provider');
+    let studioOpenAIConfigured = false;
+    let studioOpenAIModel = 'gpt-5.6';
     const studioPreset = 'Create a dark landing page for an AI security company with a hero section, three product features, and a strong call to action.';
     const normalizedStudioBrief = () => studioBrief.value.replace(/\s+/g, ' ').trim();
 
     function validateStudioBrief() {
       const value = normalizedStudioBrief();
-      studioStart.disabled = Boolean(studioSessionId) || value.length < 10 || value.length > 2000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(studioBrief.value);
+      const liveUnavailable = studioProvider.value === 'openai' && !studioOpenAIConfigured;
+      studioStart.disabled = Boolean(studioSessionId) || liveUnavailable || value.length < 10 || value.length > 2000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(studioBrief.value);
+      $('#studio-provider-badge').textContent = studioProvider.value === 'openai' ? 'LIVE OPENAI' : 'FIXTURE MODE';
+      $('#studio-model-badge').textContent = studioProvider.value === 'openai' ? studioOpenAIModel : 'NO API KEY REQUIRED';
+      $('#studio-provider-status').textContent = studioProvider.value === 'openai'
+        ? (studioOpenAIConfigured ? `${studioOpenAIModel} · SERVER KEY READY` : 'OPENAI KEY ABSENT')
+        : 'FIXTURE · OFFLINE';
     }
 
     function renderStudio(session) {
@@ -876,6 +888,8 @@ _DASHBOARD = r'''<!doctype html>
       $('#studio-current').textContent = `${String(session.current_stage || session.state || 'ready').replaceAll('_',' ').toUpperCase()} · ${session.progress || 0}%`;
       $('#studio-hash').textContent = session.current_output_hash || 'No stage output recorded';
       $('#studio-apr-status').textContent = session.apr?.status || 'AWAITING ARTIFACT';
+      $('#studio-provider-badge').textContent = session.provider === 'openai' ? 'LIVE OPENAI' : 'FIXTURE MODE';
+      $('#studio-model-badge').textContent = session.model || (session.provider === 'openai' ? studioOpenAIModel : 'fixture-v1');
       (session.agents || []).forEach(agent => {
         const card = document.querySelector(`[data-studio-agent="${agent.stage_id}"]`);
         if (!card) return;
@@ -913,7 +927,7 @@ _DASHBOARD = r'''<!doctype html>
             await refresh();
             await loadEvidence(body.session.apr_run_id, false);
           }
-          toast(`Mission Studio: ${body.session.proof_status || body.session.state}`, body.session.state === 'failed');
+          toast(`Mission Studio: ${body.session.error || body.session.proof_status || body.session.state}`, body.session.state === 'failed');
           return;
         }
         studioPollTimer = window.setTimeout(pollStudio, 180);
@@ -925,6 +939,7 @@ _DASHBOARD = r'''<!doctype html>
     }
 
     studioBrief.addEventListener('input', validateStudioBrief);
+    studioProvider.addEventListener('change', validateStudioBrief);
     $('#studio-preset').addEventListener('click', () => {
       studioBrief.value = studioPreset;
       validateStudioBrief();
@@ -934,7 +949,7 @@ _DASHBOARD = r'''<!doctype html>
       if (studioStart.disabled) return;
       studioStart.disabled = true;
       try {
-        const body = await api('/api/studio/start', {method:'POST', headers:{'Content-Type':'application/json','X-APR-Token':token}, body:JSON.stringify({mission_type:'verified_website_build',brief:normalizedStudioBrief()})});
+        const body = await api('/api/studio/start', {method:'POST', headers:{'Content-Type':'application/json','X-APR-Token':token}, body:JSON.stringify({mission_type:'verified_website_build',brief:normalizedStudioBrief(),provider:studioProvider.value})});
         studioSessionId = body.session.session_id;
         renderStudio(body.session);
         studioPollTimer = window.setTimeout(pollStudio, 120);
@@ -1091,6 +1106,13 @@ _DASHBOARD = r'''<!doctype html>
     async function refresh() {
       try {
         const data = await api('/api/state');
+        studioOpenAIConfigured = Boolean(data.service.openai_configured);
+        studioOpenAIModel = data.service.mission_studio_openai_model || 'gpt-5.6';
+        const liveOption = studioProvider.querySelector('option[value="openai"]');
+        liveOption.disabled = !studioOpenAIConfigured;
+        if (!studioOpenAIConfigured && studioProvider.value === 'openai') studioProvider.value = 'fixture';
+        liveOption.textContent = `LIVE ${studioOpenAIModel.toUpperCase()}`;
+        validateStudioBrief();
         const ready = Boolean(data.doctor.available);
         const latest = data.runs[0];
         $('#runtime-version').textContent = `v${data.service.version}`;

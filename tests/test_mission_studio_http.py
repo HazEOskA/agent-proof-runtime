@@ -78,11 +78,13 @@ class MissionStudioHttpTests(unittest.TestCase):
                     with self.assertRaises(HTTPError) as denied:
                         urlopen(missing_token, timeout=5)
                     self.assertEqual(denied.exception.code, HTTPStatus.FORBIDDEN)
+                    denied.exception.read()
                     denied.exception.close()
 
                     with self.assertRaises(HTTPError) as wrong_token:
                         self._post(base + "/api/studio/start", VALID, "wrong-token")
                     self.assertEqual(wrong_token.exception.code, HTTPStatus.FORBIDDEN)
+                    wrong_token.exception.read()
                     wrong_token.exception.close()
 
                     with self.assertRaises(HTTPError) as wrong_type:
@@ -95,6 +97,7 @@ class MissionStudioHttpTests(unittest.TestCase):
                     self.assertEqual(
                         wrong_type.exception.code, HTTPStatus.UNSUPPORTED_MEDIA_TYPE
                     )
+                    wrong_type.exception.read()
                     wrong_type.exception.close()
 
                     oversized = HTTPConnection(
@@ -119,7 +122,18 @@ class MissionStudioHttpTests(unittest.TestCase):
                             control.csrf_token,
                         )
                     self.assertEqual(unknown_field.exception.code, HTTPStatus.BAD_REQUEST)
+                    unknown_field.exception.read()
                     unknown_field.exception.close()
+
+                    with self.assertRaises(HTTPError) as browser_key:
+                        self._post(
+                            base + "/api/studio/start",
+                            {**VALID, "api_key": "browser-key-is-forbidden"},
+                            control.csrf_token,
+                        )
+                    self.assertEqual(browser_key.exception.code, HTTPStatus.BAD_REQUEST)
+                    browser_key.exception.read()
+                    browser_key.exception.close()
 
                     with self.assertRaises(HTTPError) as invalid_id:
                         urlopen(base + "/api/studio/../bad", timeout=5)
@@ -127,10 +141,12 @@ class MissionStudioHttpTests(unittest.TestCase):
                         invalid_id.exception.code,
                         {HTTPStatus.BAD_REQUEST, HTTPStatus.NOT_FOUND},
                     )
+                    invalid_id.exception.read()
                     invalid_id.exception.close()
                     with self.assertRaises(HTTPError) as missing:
                         urlopen(base + "/api/studio/studio-" + "0" * 32, timeout=5)
                     self.assertEqual(missing.exception.code, HTTPStatus.NOT_FOUND)
+                    missing.exception.read()
                     missing.exception.close()
 
                     with self._post(
@@ -149,6 +165,7 @@ class MissionStudioHttpTests(unittest.TestCase):
                         ) as response:
                             session = json.loads(response.read())["session"]
                     self.assertEqual(session["state"], "completed")
+                    self.assertEqual(session["provider"], "fixture")
                     self.assertIsNotNone(session["apr_run_id"])
                     self.assertEqual(session["mission_status"], "PASSED")
                     self.assertEqual(session["proof_status"], "LOCAL_VERIFIED")

@@ -6,7 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 COPY . /app
-RUN python -m pip install --no-cache-dir . \
+RUN python -m pip install --no-cache-dir '.[openai]' \
     && useradd --create-home --uid 10001 apr \
     && mkdir -p /app/.runs \
     && chown -R apr:apr /app

@@ -50,12 +50,14 @@ class MissionStudioRequestTests(unittest.TestCase):
             {
                 "mission_type": "verified_website_build",
                 "brief": "Create a dark verified website.",
+                "provider": "fixture",
             },
         )
 
     def test_unknown_and_missing_fields_are_rejected(self) -> None:
         for value in (
             {**VALID, "extra": True},
+            {**VALID, "api_key": "never-accepted"},
             {"mission_type": "verified_website_build"},
             {"brief": VALID["brief"]},
             [],
@@ -69,6 +71,16 @@ class MissionStudioRequestTests(unittest.TestCase):
             MissionStudioRequest.parse({**VALID, "mission_type": "arbitrary"})
         with self.assertRaises(MissionStudioValidationError):
             MissionStudioRequest.parse({**VALID, "brief": 123})
+        with self.assertRaises(MissionStudioValidationError):
+            MissionStudioRequest.parse({**VALID, "provider": "other"})
+
+    def test_provider_defaults_to_fixture_and_explicit_modes_are_supported(self) -> None:
+        implicit = MissionStudioRequest.parse(VALID)
+        fixture = MissionStudioRequest.parse({**VALID, "provider": "fixture"})
+        live = MissionStudioRequest.parse({**VALID, "provider": "openai"})
+        self.assertEqual(implicit.provider, "fixture")
+        self.assertEqual(fixture.provider, "fixture")
+        self.assertEqual(live.provider, "openai")
 
     def test_blank_short_oversized_nul_and_controls_are_rejected(self) -> None:
         invalid_briefs = (
