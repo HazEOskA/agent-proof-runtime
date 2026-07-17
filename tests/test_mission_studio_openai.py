@@ -15,6 +15,7 @@ from unittest.mock import patch
 from agent_proof_runtime.mission_studio import MissionStudioManager
 from agent_proof_runtime.mission_studio_openai import (
     ARTIFACT_LIMITS,
+    OPENAI_TIMEOUT_SECONDS,
     MissionStudioOpenAIError,
     MissionStudioOpenAIProvider,
 )
@@ -147,6 +148,22 @@ class FakeResponses:
             hidden_reasoning="must-never-persist",
             raw_sdk_response="must-never-persist",
         )
+
+
+def sdk_error(
+    exception_class: str,
+    *,
+    status: int | None = None,
+    request_id: str = "req_safe_mock",
+    code: str | None = None,
+    message: str = "raw secret exception body must never persist",
+) -> Exception:
+    error_type = type(exception_class, (RuntimeError,), {})
+    error = error_type(message)
+    error.status_code = status
+    error.request_id = request_id
+    error.code = code
+    return error
 
 
 def fake_client(outputs: list[object] | None = None) -> tuple[object, FakeResponses]:
@@ -327,6 +344,148 @@ class MissionStudioOpenAITests(unittest.TestCase):
             self.assertNotIn(str(root.resolve()), persisted)
             self.assertNotIn("Traceback", persisted)
 
+    def test_research_transient_failures_retry_then_succeed(self) -> None:
+        transient_errors = (
+            sdk_error("APITimeoutError", code="timeout"),
+            sdk_error("APIConnectionError", code="connection_failed"),
+            sdk_error("RateLimitError", status=429, code="rate_limit_exceeded"),
+            sdk_error("InternalServerError", status=500, code="server_error"),
+        )
+        for transient_error in transient_errors:
+            with self.subTest(exception_class=type(transient_error).__name__):
+                outputs = stage_outputs()
+                client, responses = fake_client(
+                    [
+                        outputs[0],
+                        transient_error,
+                        outputs[1],
+                        outputs[2],
+                        outputs[3],
+                    ]
+                )
+                with tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    manager = self._manager(root, client)
+                    with patch(
+                        "agent_proof_runtime.mission_studio_openai._retry_pause"
+                    ) as retry_sleep:
+                        session = wait_for_session(
+                            manager,
+                            manager.start({**VALID, "provider": "openai"}),
+                        )
+                    self.assertEqual(len(responses.calls), 5)
+                    retry_sleep.assert_called_once_with(0.25)
+                    self.assertEqual(
+                        [event["type"] for event in session["events"]],
+                        EXPECTED_EVENTS,
+                    )
+                    self.assertEqual(session["mission_status"], "PASSED")
+                    self.assertEqual(session["proof_status"], "LOCAL_VERIFIED")
+                    self.assertEqual(session["anchor_status"], "UNANCHORED")
+                    run_dir = root / "runs" / session["apr_run_id"]
+                    bundle = json.loads(
+                        (run_dir / "proof-bundle.json").read_text(encoding="utf-8")
+                    )
+                    self.assertEqual(len(bundle["artifacts"]), 4)
+                    self.assertEqual(
+                        sum(check["passed"] for check in bundle["acceptance"]["checks"]),
+                        16,
+                    )
+                    trace = json.loads(
+                        (run_dir / "artifact" / "studio" / "trace.json").read_text(
+                            encoding="utf-8"
+                        )
+                    )
+                    self.assertEqual(trace["stages"][1]["stage_id"], "research")
+                    self.assertEqual(trace["stages"][1]["attempt_count"], 2)
+
+    def test_permanent_400_and_401_are_not_retried(self) -> None:
+        cases = (
+            ("BadRequestError", 400, "openai_bad_request"),
+            ("AuthenticationError", 401, "openai_auth_failed"),
+            ("PermissionDeniedError", 403, "openai_permission_denied"),
+        )
+        for exception_class, status, category in cases:
+            with self.subTest(status=status):
+                outputs = stage_outputs()
+                client, responses = fake_client(
+                    [
+                        outputs[0],
+                        sdk_error(
+                            exception_class,
+                            status=status,
+                            request_id=f"req_safe_{status}",
+                            code="safe_test_code",
+                        ),
+                    ]
+                )
+                provider = MissionStudioOpenAIProvider(
+                    SimpleNamespace(**{**VALID, "provider": "openai"}), client=client
+                )
+                provider.run_stage("planner")
+                with patch(
+                    "agent_proof_runtime.mission_studio_openai._retry_pause"
+                ) as retry_sleep:
+                    with self.assertRaises(MissionStudioOpenAIError) as raised:
+                        provider.run_stage("research")
+                self.assertEqual(raised.exception.category, category)
+                self.assertEqual(raised.exception.stage, "research")
+                self.assertEqual(raised.exception.http_status, status)
+                self.assertEqual(raised.exception.request_id, f"req_safe_{status}")
+                self.assertEqual(raised.exception.attempt_count, 1)
+                self.assertEqual(len(responses.calls), 2)
+                retry_sleep.assert_not_called()
+
+    def test_research_retry_exhaustion_persists_only_safe_diagnostics(self) -> None:
+        outputs = stage_outputs()
+        failures = [
+            sdk_error(
+                "InternalServerError",
+                status=503,
+                request_id=f"req_safe_retry_{attempt}",
+                code="server_error",
+                message="sk-secret C:\\private raw response body",
+            )
+            for attempt in range(1, 4)
+        ]
+        client, responses = fake_client([outputs[0], *failures])
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manager = self._manager(root, client)
+            with patch(
+                "agent_proof_runtime.mission_studio_openai._retry_pause"
+            ) as retry_sleep, self.assertLogs(
+                "agent_proof_runtime.mission_studio", level="WARNING"
+            ) as captured:
+                session = wait_for_session(
+                    manager,
+                    manager.start({**VALID, "provider": "openai"}),
+                )
+        self.assertEqual(session["state"], "failed")
+        self.assertEqual(session["failure_category"], "openai_server_error")
+        self.assertEqual(
+            session["failure_diagnostics"],
+            {
+                "category": "openai_server_error",
+                "stage": "research",
+                "http_status": 503,
+                "request_id": "req_safe_retry_3",
+                "openai_error_code": "server_error",
+                "exception_class": "InternalServerError",
+                "attempt_count": 3,
+            },
+        )
+        self.assertEqual(len(responses.calls), 4)
+        self.assertEqual([call.args[0] for call in retry_sleep.call_args_list], [0.25, 0.5])
+        self.assertNotIn(
+            "handoff.research_to_builder", [event["type"] for event in session["events"]]
+        )
+        self.assertNotIn("apr.run.started", [event["type"] for event in session["events"]])
+        safe_serialized = json.dumps({"session": session, "logs": captured.output})
+        self.assertNotIn("sk-secret", safe_serialized)
+        self.assertNotIn("C:\\\\private", safe_serialized)
+        self.assertNotIn("raw response body", safe_serialized)
+
     def test_absent_server_key_fails_closed_without_apr(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -356,6 +515,25 @@ class MissionStudioOpenAITests(unittest.TestCase):
                 with self.assertRaises(MissionStudioOpenAIError) as raised:
                     provider.run_stage("planner")
         self.assertEqual(raised.exception.category, "openai_sdk_unavailable")
+
+    def test_live_client_uses_120_second_timeout_and_no_sdk_retries(self) -> None:
+        captured: dict[str, object] = {}
+
+        def fake_openai(**kwargs: object) -> object:
+            captured.update(kwargs)
+            return SimpleNamespace(responses=SimpleNamespace())
+
+        fake_module = SimpleNamespace(OpenAI=fake_openai)
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "server-only"}, clear=True):
+            with patch.dict(sys.modules, {"openai": fake_module}):
+                provider = MissionStudioOpenAIProvider(
+                    SimpleNamespace(**{**VALID, "provider": "openai"})
+                )
+                provider._client_for_request()
+        self.assertEqual(captured["timeout"], OPENAI_TIMEOUT_SECONDS)
+        self.assertEqual(captured["timeout"], 120)
+        self.assertEqual(captured["max_retries"], 0)
+        self.assertIn("api_key", captured)
 
     def test_malformed_duplicate_and_request_errors_are_safely_categorized(self) -> None:
         for output in ("not json", '{"summary":"one","summary":"two"}'):
@@ -391,16 +569,26 @@ class MissionStudioOpenAITests(unittest.TestCase):
         self.assertEqual(session["failure_category"], "openai_request_failed")
         self.assertNotIn("sk-secret", serialized)
         self.assertNotIn("C:\\\\private", serialized)
-        self.assertNotIn("RuntimeError", serialized)
+        self.assertNotIn("raw response body", serialized)
+        self.assertEqual(
+            session["failure_diagnostics"]["exception_class"], "RuntimeError"
+        )
+        self.assertEqual(session["failure_diagnostics"]["attempt_count"], 1)
 
     def test_timeout_has_a_safe_category(self) -> None:
-        client, _ = fake_client([TimeoutError("secret timeout details")])
+        client, responses = fake_client(
+            [TimeoutError("secret timeout details") for _ in range(3)]
+        )
         provider = MissionStudioOpenAIProvider(
             SimpleNamespace(**{**VALID, "provider": "openai"}), client=client
         )
-        with self.assertRaises(MissionStudioOpenAIError) as raised:
-            provider.run_stage("planner")
+        with patch("agent_proof_runtime.mission_studio_openai._retry_pause"):
+            with self.assertRaises(MissionStudioOpenAIError) as raised:
+                provider.run_stage("planner")
         self.assertEqual(raised.exception.category, "openai_timeout")
+        self.assertEqual(raised.exception.stage, "planner")
+        self.assertEqual(raised.exception.attempt_count, 3)
+        self.assertEqual(len(responses.calls), 3)
 
     def test_bad_builder_artifact_contracts_are_rejected_before_qa_or_apr(self) -> None:
         valid = website_artifacts()

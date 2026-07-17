@@ -18,6 +18,10 @@ from .providers import ArtifactProposal, ProposedArtifact, ProviderError, Provid
 
 DEFAULT_OPENAI_MODEL = "gpt-5.6"
 IMPLEMENTATION_STATUS = "IMPLEMENTED BUT NOT LIVE-VALIDATED"
+OPENAI_TIMEOUT_SECONDS = 120
+MAX_STAGE_ATTEMPTS = 3
+RETRY_BACKOFF_SECONDS = (0.25, 0.5)
+TRANSIENT_HTTP_STATUSES = {408, 409, 429, 500, 502, 503, 504}
 STAGE_IDS = ("planner", "research", "builder", "qa")
 STAGE_NAMES = {
     "planner": "Mission Planner Agent",
@@ -37,6 +41,7 @@ ARTIFACT_LIMITS = {
 }
 MODEL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$")
 RESPONSE_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$")
+SAFE_ERROR_VALUE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$")
 SENSITIVE_RUNTIME_TEXT = re.compile(
     r"(?i)(?:\b[A-Z]:\\|/(?:home|Users|tmp|var|etc|opt|root)/|"
     r"\bOPENAI_API_KEY\b|\bAPR_OPENAI_MODEL\s*=|environment variables|"
@@ -50,9 +55,44 @@ EXECUTABLE_HTML = re.compile(
 class MissionStudioOpenAIError(ProviderError):
     """A safe, categorized failure in the live Mission Studio pipeline."""
 
-    def __init__(self, category: str) -> None:
+    def __init__(
+        self,
+        category: str,
+        *,
+        stage: str | None = None,
+        http_status: int | None = None,
+        request_id: str | None = None,
+        openai_error_code: str | None = None,
+        exception_class: str | None = None,
+        attempt_count: int | None = None,
+    ) -> None:
         self.category = category
+        self.stage = stage if stage in STAGE_IDS else None
+        self.http_status = (
+            http_status
+            if isinstance(http_status, int) and 100 <= http_status <= 599
+            else None
+        )
+        self.request_id = _safe_identifier(request_id)
+        self.openai_error_code = _safe_error_value(openai_error_code)
+        self.exception_class = _safe_error_value(exception_class)
+        self.attempt_count = (
+            attempt_count
+            if isinstance(attempt_count, int) and 1 <= attempt_count <= MAX_STAGE_ATTEMPTS
+            else None
+        )
         super().__init__(category)
+
+    def safe_diagnostics(self) -> dict[str, Any]:
+        return {
+            "category": self.category,
+            "stage": self.stage,
+            "http_status": self.http_status,
+            "request_id": self.request_id,
+            "openai_error_code": self.openai_error_code,
+            "exception_class": self.exception_class,
+            "attempt_count": self.attempt_count,
+        }
 
 
 def configured_openai_model() -> str:
@@ -260,6 +300,96 @@ def _safe_identifier(value: Any, fallback: str | None = None) -> str | None:
     return fallback
 
 
+def _safe_error_value(value: Any) -> str | None:
+    if isinstance(value, str) and SAFE_ERROR_VALUE.fullmatch(value):
+        return value
+    return None
+
+
+def _retry_pause(seconds: float) -> None:
+    time.sleep(seconds)
+
+
+def _http_status(error: Exception) -> int | None:
+    status = getattr(error, "status_code", None)
+    if not isinstance(status, int):
+        status = getattr(getattr(error, "response", None), "status_code", None)
+    if isinstance(status, int) and 100 <= status <= 599:
+        return status
+    return None
+
+
+def _request_id(error: Exception) -> str | None:
+    request_id = _safe_identifier(getattr(error, "request_id", None))
+    if request_id is not None:
+        return request_id
+    headers = getattr(getattr(error, "response", None), "headers", None)
+    if headers is not None and hasattr(headers, "get"):
+        return _safe_identifier(headers.get("x-request-id"))
+    return None
+
+
+def _classify_request_error(
+    error: Exception, stage_id: str, attempt_count: int
+) -> tuple[MissionStudioOpenAIError, bool]:
+    exception_class = _safe_error_value(type(error).__name__) or "SDKError"
+    status = _http_status(error)
+    error_code = _safe_error_value(getattr(error, "code", None))
+    timeout = isinstance(error, TimeoutError) or exception_class in {
+        "APITimeoutError",
+        "TimeoutException",
+        "ConnectTimeout",
+        "ReadTimeout",
+    }
+    connection = isinstance(error, ConnectionError) or exception_class in {
+        "APIConnectionError",
+        "ConnectError",
+        "NetworkError",
+    }
+    if timeout or status == 408:
+        category = "openai_timeout"
+    elif connection:
+        category = "openai_connection_failed"
+    elif exception_class == "RateLimitError" or status == 429:
+        category = "openai_rate_limited"
+    elif exception_class == "AuthenticationError" or status == 401:
+        category = "openai_auth_failed"
+    elif exception_class == "PermissionDeniedError" or status == 403:
+        category = "openai_permission_denied"
+    elif exception_class in {
+        "BadRequestError",
+        "NotFoundError",
+        "UnprocessableEntityError",
+    } or status in {400, 404, 422}:
+        category = "openai_bad_request"
+    elif exception_class == "InternalServerError" or (
+        status is not None and 500 <= status <= 599
+    ):
+        category = "openai_server_error"
+    else:
+        category = "openai_request_failed"
+    classified = MissionStudioOpenAIError(
+        category,
+        stage=stage_id,
+        http_status=status,
+        request_id=_request_id(error),
+        openai_error_code=error_code,
+        exception_class=exception_class,
+        attempt_count=attempt_count,
+    )
+    transient = category not in {
+        "openai_auth_failed",
+        "openai_permission_denied",
+        "openai_bad_request",
+    } and (
+        timeout
+        or connection
+        or status in TRANSIENT_HTTP_STATUSES
+        or (status is None and exception_class in {"RateLimitError", "InternalServerError"})
+    )
+    return classified, transient
+
+
 def _validate_artifacts(value: Any) -> tuple[ProposedArtifact, ...]:
     if not isinstance(value, list) or len(value) != 3:
         raise MissionStudioOpenAIError("stage_contract_rejected")
@@ -368,7 +498,11 @@ class MissionStudioOpenAIProvider:
         except ImportError as error:
             raise MissionStudioOpenAIError("openai_sdk_unavailable") from error
         try:
-            self._client = OpenAI(api_key=api_key, timeout=30)
+            self._client = OpenAI(
+                api_key=api_key,
+                timeout=OPENAI_TIMEOUT_SECONDS,
+                max_retries=0,
+            )
         except Exception as error:
             raise MissionStudioOpenAIError("openai_sdk_unavailable") from error
         return self._client
@@ -393,54 +527,85 @@ class MissionStudioOpenAIProvider:
         expected_index = len(self._outputs)
         if STAGE_IDS[expected_index] != stage_id:
             raise MissionStudioOpenAIError("stage_contract_rejected")
-        client = self._client_for_request()
+        try:
+            client = self._client_for_request()
+        except MissionStudioOpenAIError as error:
+            raise MissionStudioOpenAIError(
+                error.category,
+                stage=stage_id,
+                http_status=error.http_status,
+                request_id=error.request_id,
+                openai_error_code=error.openai_error_code,
+                exception_class=error.exception_class,
+                attempt_count=1,
+            ) from error
         stage_input = self._stage_input(stage_id)
         started = time.monotonic()
-        try:
-            response = client.responses.create(
-                model=self.model,
-                instructions=STAGE_INSTRUCTIONS[stage_id],
-                input=json.dumps(
-                    stage_input,
-                    ensure_ascii=False,
-                    sort_keys=True,
-                    separators=(",", ":"),
-                ),
-                text={
-                    "format": {
-                        "type": "json_schema",
-                        "name": f"apr_mission_studio_{stage_id}_v1",
-                        "strict": True,
-                        "schema": STAGE_SCHEMAS[stage_id],
-                    }
-                },
-                tools=[],
-                max_output_tokens=4096,
-                store=False,
+        response: Any | None = None
+        attempt_count = 0
+        while attempt_count < MAX_STAGE_ATTEMPTS:
+            attempt_count += 1
+            try:
+                response = client.responses.create(
+                    model=self.model,
+                    instructions=STAGE_INSTRUCTIONS[stage_id],
+                    input=json.dumps(
+                        stage_input,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ),
+                    text={
+                        "format": {
+                            "type": "json_schema",
+                            "name": f"apr_mission_studio_{stage_id}_v1",
+                            "strict": True,
+                            "schema": STAGE_SCHEMAS[stage_id],
+                        }
+                    },
+                    tools=[],
+                    max_output_tokens=4096,
+                    store=False,
+                )
+                break
+            except MissionStudioOpenAIError:
+                raise
+            except Exception as error:
+                classified, transient = _classify_request_error(
+                    error, stage_id, attempt_count
+                )
+                if not transient or attempt_count >= MAX_STAGE_ATTEMPTS:
+                    raise classified from error
+                _retry_pause(RETRY_BACKOFF_SECONDS[attempt_count - 1])
+        if response is None:
+            raise MissionStudioOpenAIError(
+                "openai_request_failed",
+                stage=stage_id,
+                attempt_count=attempt_count,
             )
-        except MissionStudioOpenAIError:
-            raise
-        except Exception as error:
-            error_name = type(error).__name__
-            category = (
-                "openai_timeout"
-                if isinstance(error, TimeoutError)
-                or error_name in {"APITimeoutError", "TimeoutException"}
-                else "openai_request_failed"
-            )
-            raise MissionStudioOpenAIError(category) from error
         latency_ms = max(0, int((time.monotonic() - started) * 1000))
-        output = _parse_json(getattr(response, "output_text", None))
-        _validate_shape(stage_id, output)
-        _validate_safe_output_text(output)
-        if stage_id in {"builder", "qa"}:
-            artifacts = _validate_artifacts(output["artifacts"])
-            output = {
-                **output,
-                "artifacts": [artifact.to_dict() for artifact in artifacts],
-            }
-        if stage_id == "qa" and output["approved"] is not True:
-            raise MissionStudioOpenAIError("stage_contract_rejected")
+        try:
+            output = _parse_json(getattr(response, "output_text", None))
+            _validate_shape(stage_id, output)
+            _validate_safe_output_text(output)
+            if stage_id in {"builder", "qa"}:
+                artifacts = _validate_artifacts(output["artifacts"])
+                output = {
+                    **output,
+                    "artifacts": [artifact.to_dict() for artifact in artifacts],
+                }
+            if stage_id == "qa" and output["approved"] is not True:
+                raise MissionStudioOpenAIError("stage_contract_rejected")
+        except MissionStudioOpenAIError as error:
+            raise MissionStudioOpenAIError(
+                error.category,
+                stage=stage_id,
+                http_status=error.http_status,
+                request_id=error.request_id,
+                openai_error_code=error.openai_error_code,
+                exception_class=error.exception_class,
+                attempt_count=attempt_count,
+            ) from error
 
         usage = _usage(response)
         for field in self._usage:
@@ -465,6 +630,7 @@ class MissionStudioOpenAIProvider:
             "response_id": response_id,
             "token_usage": usage,
             "latency_ms": latency_ms,
+            "attempt_count": attempt_count,
         }
         self._records.append(record)
         if stage_id == "qa":

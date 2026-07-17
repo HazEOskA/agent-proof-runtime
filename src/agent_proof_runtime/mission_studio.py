@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import html
 import json
+import logging
 import re
 import threading
 import time
@@ -60,6 +61,7 @@ MEDIA_TYPES = {
     "studio/trace.json": "application/json",
 }
 PACKAGED_MANIFEST = ("data", "verified-website-build.json")
+LOGGER = logging.getLogger(__name__)
 FAILURE_MESSAGES = {
     "manifest_unavailable": "The packaged Mission Studio manifest is unavailable.",
     "manifest_invalid": "The packaged Mission Studio manifest is invalid.",
@@ -69,6 +71,12 @@ FAILURE_MESSAGES = {
     "openai_sdk_unavailable": "Live mode is unavailable because the OpenAI SDK is not installed.",
     "openai_request_failed": "The OpenAI stage request failed.",
     "openai_timeout": "The OpenAI stage request timed out.",
+    "openai_connection_failed": "The OpenAI stage could not establish a connection.",
+    "openai_rate_limited": "The OpenAI stage was rate limited.",
+    "openai_server_error": "The OpenAI service returned a server error.",
+    "openai_auth_failed": "The OpenAI server credentials were rejected.",
+    "openai_permission_denied": "The OpenAI request was not permitted.",
+    "openai_bad_request": "The OpenAI stage request was rejected.",
     "structured_output_invalid": "The OpenAI stage returned invalid structured output.",
     "stage_contract_rejected": "The OpenAI stage output violated its fixed contract.",
     "runtime_io_failed": "APR could not materialize the Mission Studio run.",
@@ -648,6 +656,18 @@ class MissionStudioManager:
             )
         except Exception as error:
             failure_category = _failure_category(error)
+            failure_diagnostics: dict[str, Any] | None = None
+            if isinstance(error, MissionStudioOpenAIError):
+                failure_diagnostics = error.safe_diagnostics()
+                LOGGER.warning(
+                    "mission_studio_openai_failure %s",
+                    json.dumps(
+                        failure_diagnostics,
+                        ensure_ascii=True,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ),
+                )
             with self._lock:
                 session = self._sessions[session_id]
                 session.update(
@@ -658,17 +678,20 @@ class MissionStudioManager:
                     failure_category=failure_category,
                     error=FAILURE_MESSAGES[failure_category],
                 )
+                if failure_diagnostics is not None:
+                    session["failure_diagnostics"] = failure_diagnostics
                 for agent in session["agents"]:
                     if agent["status"] in {"working", "handing_off"}:
                         agent["status"] = "failed"
                 events = session["events"]
-                events.append(
-                    {
-                        "id": f"event-{len(events) + 1:03d}",
-                        "type": "studio.mission_failed",
-                        "timestamp": _timestamp(),
-                        "category": failure_category,
-                    }
-                )
+                failed_event = {
+                    "id": f"event-{len(events) + 1:03d}",
+                    "type": "studio.mission_failed",
+                    "timestamp": _timestamp(),
+                    "category": failure_category,
+                }
+                if failure_diagnostics is not None:
+                    failed_event.update(failure_diagnostics)
+                events.append(failed_event)
         finally:
             self.run_lock.release()
