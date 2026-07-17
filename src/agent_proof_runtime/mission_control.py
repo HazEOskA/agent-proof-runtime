@@ -318,11 +318,6 @@ class MissionControl:
         self._run_lock = threading.Lock()
         self._studio = MissionStudioManager(
             runs_dir=self.config.runs_dir,
-            manifest_path=(
-                Path(__file__).resolve().parents[2]
-                / "examples"
-                / "verified-website-build.json"
-            ),
             run_lock=self._run_lock,
         )
 

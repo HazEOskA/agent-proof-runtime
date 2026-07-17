@@ -5,6 +5,8 @@ import os
 import shutil
 import subprocess
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -18,6 +20,7 @@ from agent_proof_runtime.mission_studio import (
     ARTIFACT_PATHS,
     MEDIA_TYPES,
     MissionStudioFixtureProvider,
+    MissionStudioManager,
     MissionStudioRequest,
     MissionStudioValidationError,
 )
@@ -213,6 +216,45 @@ class MissionStudioIntegrationTests(unittest.TestCase):
             self.assertNotIn(str(Path.cwd().resolve()), persisted)
             self.assertNotIn("chain-of-thought", persisted.casefold())
             self.assertNotIn("raw_model_response", persisted.casefold())
+
+
+class MissionStudioFailureTests(unittest.TestCase):
+    def test_failure_event_exposes_only_a_safe_operator_category(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            manager = MissionStudioManager(
+                runs_dir=Path(temporary) / "runs",
+                run_lock=threading.Lock(),
+                stage_delay_seconds=0,
+            )
+            with patch(
+                "agent_proof_runtime.mission_studio.resources.files",
+                side_effect=FileNotFoundError("C:\\sensitive\\absolute\\manifest.json"),
+            ):
+                created = manager.start(VALID)
+                session = created
+                deadline = time.monotonic() + 3
+                while session["state"] not in {"completed", "failed"}:
+                    self.assertLess(time.monotonic(), deadline)
+                    time.sleep(0.01)
+                    session = manager.get(created["session_id"])
+
+            self.assertEqual(session["state"], "failed")
+            self.assertEqual(session["proof_status"], "FAILED")
+            self.assertEqual(session["failure_category"], "manifest_unavailable")
+            failure = session["events"][-1]
+            self.assertEqual(
+                failure,
+                {
+                    "id": failure["id"],
+                    "type": "studio.mission_failed",
+                    "timestamp": failure["timestamp"],
+                    "category": "manifest_unavailable",
+                },
+            )
+            serialized = json.dumps(session)
+            self.assertNotIn("FileNotFoundError", serialized)
+            self.assertNotIn("C:\\\\sensitive", serialized)
+            self.assertNotIn("Traceback", serialized)
 
 
 if __name__ == "__main__":

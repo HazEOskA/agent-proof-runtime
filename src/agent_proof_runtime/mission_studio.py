@@ -15,13 +15,24 @@ import time
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from importlib import resources
 from pathlib import Path
 from typing import Any
 
-from .build_week_runtime import run_build_week_mission, validate_proposal
+from .build_week_runtime import (
+    ArtifactPolicyError,
+    run_build_week_mission,
+    validate_proposal,
+)
 from .canonical import hash_json
-from .mission_v1 import load_build_week_mission
-from .providers import ArtifactProposal, ProposedArtifact, ProviderResult
+from .mission import MissionValidationError
+from .mission_v1 import BuildWeekMission, load_build_week_mission
+from .providers import (
+    ArtifactProposal,
+    ProposedArtifact,
+    ProviderError,
+    ProviderResult,
+)
 
 MISSION_TYPE = "verified_website_build"
 STUDIO_SESSION = re.compile(r"^studio-[0-9a-f]{32}$")
@@ -43,6 +54,15 @@ MEDIA_TYPES = {
     "site/data.json": "application/json",
     "studio/trace.json": "application/json",
 }
+PACKAGED_MANIFEST = ("data", "verified-website-build.json")
+FAILURE_MESSAGES = {
+    "manifest_unavailable": "The packaged Mission Studio manifest is unavailable.",
+    "manifest_invalid": "The packaged Mission Studio manifest is invalid.",
+    "artifact_contract_rejected": "APR rejected the proposed artifact contract.",
+    "provider_failed": "The deterministic artifact provider failed.",
+    "runtime_io_failed": "APR could not materialize the Mission Studio run.",
+    "runtime_failed": "Mission Studio could not complete the APR run.",
+}
 
 
 class MissionStudioValidationError(ValueError):
@@ -61,6 +81,28 @@ def _json_text(value: Any) -> str:
 
 def _text_hash(value: str) -> str:
     return "sha256:" + hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def load_packaged_mission() -> BuildWeekMission:
+    """Load the fixed manifest from installed package resources."""
+
+    resource = resources.files("agent_proof_runtime").joinpath(*PACKAGED_MANIFEST)
+    with resources.as_file(resource) as manifest_path:
+        return load_build_week_mission(manifest_path)
+
+
+def _failure_category(error: Exception) -> str:
+    if isinstance(error, FileNotFoundError):
+        return "manifest_unavailable"
+    if isinstance(error, MissionValidationError):
+        return "manifest_invalid"
+    if isinstance(error, ArtifactPolicyError):
+        return "artifact_contract_rejected"
+    if isinstance(error, ProviderError):
+        return "provider_failed"
+    if isinstance(error, OSError):
+        return "runtime_io_failed"
+    return "runtime_failed"
 
 
 def _normalized_brief(value: Any) -> str:
@@ -341,12 +383,10 @@ class MissionStudioManager:
         self,
         *,
         runs_dir: Path,
-        manifest_path: Path,
         run_lock: threading.Lock,
         stage_delay_seconds: float = 0.08,
     ) -> None:
         self.runs_dir = runs_dir
-        self.manifest_path = manifest_path
         self.run_lock = run_lock
         self.stage_delay_seconds = max(0.0, stage_delay_seconds)
         self._sessions: dict[str, dict[str, Any]] = {}
@@ -388,6 +428,7 @@ class MissionStudioManager:
             "mission_status": None,
             "proof_status": None,
             "anchor_status": None,
+            "failure_category": None,
             "error": None,
         }
         with self._lock:
@@ -500,7 +541,7 @@ class MissionStudioManager:
                 apr={"status": "ENFORCING CONTRACT"},
             )
             self._event(session_id, "apr.run.started")
-            mission = load_build_week_mission(self.manifest_path)
+            mission = load_packaged_mission()
             validate_proposal(mission, provider.proposal)
             self._event(
                 session_id,
@@ -552,6 +593,7 @@ class MissionStudioManager:
                 apr={"status": verification.status},
             )
         except Exception as error:
+            failure_category = _failure_category(error)
             with self._lock:
                 session = self._sessions[session_id]
                 session.update(
@@ -559,7 +601,8 @@ class MissionStudioManager:
                     current_handoff=None,
                     proof_status="FAILED",
                     apr={"status": "FAILED"},
-                    error=f"Mission Studio failed: {type(error).__name__}",
+                    failure_category=failure_category,
+                    error=FAILURE_MESSAGES[failure_category],
                 )
                 for agent in session["agents"]:
                     if agent["status"] in {"working", "handing_off"}:
@@ -570,7 +613,7 @@ class MissionStudioManager:
                         "id": f"event-{len(events) + 1:03d}",
                         "type": "studio.mission_failed",
                         "timestamp": _timestamp(),
-                        "error_type": type(error).__name__,
+                        "category": failure_category,
                     }
                 )
         finally:
