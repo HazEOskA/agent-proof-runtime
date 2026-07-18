@@ -15,6 +15,7 @@ from unittest.mock import patch
 from agent_proof_runtime.mission_studio import MissionStudioManager
 from agent_proof_runtime.mission_studio_openai import (
     ARTIFACT_LIMITS,
+    GENERATION_TARGET_BYTES,
     OPENAI_TIMEOUT_SECONDS,
     STAGE_MAX_OUTPUT_TOKENS,
     STAGE_TIMEOUT_SECONDS,
@@ -411,6 +412,30 @@ class MissionStudioOpenAITests(unittest.TestCase):
         self.assertEqual(result["status"], "completed")
         self.assertEqual(len(result["output"]["artifacts"]), 3)
         self.assertEqual(responses.calls[2]["max_output_tokens"], 32768)
+
+    def test_builder_and_qa_generation_caps_stay_below_hard_artifact_limits(self) -> None:
+        self.assertEqual(
+            GENERATION_TARGET_BYTES,
+            {
+                "site/index.html": 12_000,
+                "site/styles.css": 8_000,
+                "site/data.json": 4_000,
+            },
+        )
+        for path, target in GENERATION_TARGET_BYTES.items():
+            self.assertLess(target, ARTIFACT_LIMITS[path])
+        client, responses = fake_client()
+        provider = MissionStudioOpenAIProvider(
+            SimpleNamespace(**{**VALID, "provider": "openai"}), client=client
+        )
+        for stage_id in ("planner", "research", "builder", "qa"):
+            provider.run_stage(stage_id)
+        for stage_index in (2, 3):
+            instructions = responses.calls[stage_index]["instructions"]
+            self.assertIn("Hard generation caps", instructions)
+            self.assertIn("12,000", instructions)
+            self.assertIn("8,000", instructions)
+            self.assertIn("4,000", instructions)
 
     def test_legacy_response_without_status_still_parses(self) -> None:
         output = stage_outputs()[0]

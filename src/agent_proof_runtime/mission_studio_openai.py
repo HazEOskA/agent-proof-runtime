@@ -51,6 +51,11 @@ ARTIFACT_LIMITS = {
     "site/styles.css": 16_384,
     "site/data.json": 16_384,
 }
+GENERATION_TARGET_BYTES = {
+    "site/index.html": 12_000,
+    "site/styles.css": 8_000,
+    "site/data.json": 4_000,
+}
 MODEL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$")
 RESPONSE_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$")
 SAFE_ERROR_VALUE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$")
@@ -249,16 +254,19 @@ STAGE_INSTRUCTIONS = {
         "Create exactly the three declared static website artifacts. The website must "
         "be semantic, accessible, responsive, polished, self-contained, and contain no "
         "JavaScript, remote assets, external fonts, analytics, trackers, tools, or network "
-        "dependencies. Target about 14 KB of concise production HTML, 10 KB of CSS, and "
-        "6 KB of data JSON. Avoid duplicated copy, giant SVG or base64 payloads, comments, "
-        "explanations, and filler. Return only one complete strict JSON result."
+        "dependencies. Hard generation caps are 12,000 UTF-8 bytes for site/index.html, "
+        "8,000 for site/styles.css, and 4,000 for site/data.json; keep every artifact below "
+        "its cap. Use concise production markup and avoid duplicated copy, giant SVG or "
+        "base64 payloads, comments, explanations, and filler. Return only one complete "
+        "strict JSON result."
     ),
     "qa": (
         "Review and correct the supplied three website artifacts. Return the complete "
         "final three-artifact proposal, not a diff. Approve only when it is semantic, "
         "accessible, responsive, self-contained, static, and free of JavaScript and "
-        "external dependencies. Keep the corrected production artifacts near 14 KB HTML, "
-        "10 KB CSS, and 6 KB data JSON. Avoid duplicated copy, giant SVG or base64 payloads, "
+        "external dependencies. Hard generation caps are 12,000 UTF-8 bytes for "
+        "site/index.html, 8,000 for site/styles.css, and 4,000 for site/data.json; keep every "
+        "artifact below its cap. Avoid duplicated copy, giant SVG or base64 payloads, "
         "comments, explanations, and filler. Return only one complete strict JSON result."
     ),
 }
