@@ -7,23 +7,29 @@ Mission Studio supports two server-selected execution modes for the fixed
 
 - `fixture` is deterministic, offline, keyless, and is the default when the request
   omits `provider`;
-- `openai` performs four sequential OpenAI Responses API calls and requires a
+- `openai` performs seven sequential OpenAI Responses API calls and requires a
   server-side `OPENAI_API_KEY`.
 
 The browser sends only the mission type, brief, and provider selection. It never
 sends, receives, stores, or displays the API key. `APR_OPENAI_MODEL` may override the
 live model; the default is `gpt-5.6`.
 
-## Four live stages
+## Seven live stages
 
 The backend runs these calls in order:
 
 1. Mission Planner produces the site goal, audience, sections, priorities, and
    constraints.
 2. Research Agent performs model-based audience and design analysis.
-3. Website Builder produces exactly `site/index.html`, `site/styles.css`, and
-   `site/data.json`.
-4. QA Agent reviews, corrects, and returns the complete final three artifacts.
+3. Content Architect produces the compact copy and trust-content model.
+4. HTML Builder produces only `site/index.html`.
+5. CSS Designer produces only `site/styles.css`.
+6. Data Builder produces only `site/data.json`.
+7. QA Agent reviews the assembled artifacts and returns only a concise verdict.
+
+Artifact stages have separate output budgets and up to three bounded attempts for
+incomplete or contract-invalid output. QA never repeats the generated files. This
+removes the previous monolithic Builder/QA payload that could exhaust one response.
 
 This is not live web research. The pipeline uses no web search, tools, shell,
 filesystem tools, code execution, or external citations. Every call uses
@@ -92,7 +98,7 @@ Run this only after mock tests and an operator-approved server secret are in pla
 1. Install `.[openai]` and start Mission Control locally.
 2. Confirm the UI reports the server key as ready without displaying it.
 3. Select **LIVE GPT-5.6**, enter a constrained website brief, and start one mission.
-4. Confirm four backend API calls and the exact 17 Mission Studio events.
+4. Confirm seven backend API calls and the exact 26 Mission Studio events.
 5. Confirm `apr.contract_enforced`, four artifacts, 16 passing acceptance checks,
    `PASSED`, `LOCAL_VERIFIED`, and `UNANCHORED`.
 6. Run the existing artifact and trace tamper checks and confirm the original remains
@@ -100,6 +106,6 @@ Run this only after mock tests and an operator-approved server secret are in pla
 7. Scan persisted files for secrets, environment values, absolute paths, raw model
    responses, hidden reasoning, and stack traces.
 
-Until that real four-stage procedure succeeds, the status remains **IMPLEMENTED BUT
+Until that real seven-stage procedure succeeds, the status remains **IMPLEMENTED BUT
 NOT LIVE-VALIDATED**. Validation of the older single-call OpenAI artifact provider
 does not count as live validation of this pipeline.
