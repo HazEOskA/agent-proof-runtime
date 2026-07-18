@@ -508,10 +508,19 @@ class MissionStudioOpenAITests(unittest.TestCase):
         for stage_id in ("planner", "research", "content", "html_builder"):
             provider.run_stage(stage_id)
         with patch("agent_proof_runtime.mission_studio_openai._retry_pause"):
-            with self.assertRaises(MissionStudioOpenAIError) as raised:
-                provider.run_stage("css_builder")
-        self.assertEqual(raised.exception.category, "stage_contract_rejected")
-        self.assertEqual(raised.exception.contract_reason, "css_policy")
+            recovered = provider.run_stage("css_builder")
+        self.assertEqual(recovered["status"], "completed")
+        self.assertEqual(
+            recovered["event_output"]["completion_mode"],
+            "deterministic_contract_recovery",
+        )
+        self.assertEqual(
+            provider._records[-1]["recovery_contract_reason"], "css_policy"
+        )
+        self.assertNotRegex(
+            recovered["output"]["artifact"]["content"],
+            r"(?m)(?:^|[;{])\s*behavior\s*:",
+        )
 
     def test_builder_and_qa_generation_caps_stay_below_hard_artifact_limits(self) -> None:
         self.assertEqual(
@@ -904,6 +913,64 @@ class MissionStudioOpenAITests(unittest.TestCase):
             len(recovered.encode("utf-8")), ARTIFACT_LIMITS["site/index.html"]
         )
 
+    def test_all_build_and_qa_stages_recover_without_killing_the_mission(self) -> None:
+        outputs = stage_outputs()
+        rejected_qa = {
+            **outputs[6],
+            "approved": False,
+            "issues": ["model declined the otherwise validated artifacts"],
+        }
+        invalid = "not-json and never persisted"
+        client, responses = fake_client(
+            [
+                *outputs[:3],
+                invalid,
+                invalid,
+                invalid,
+                invalid,
+                invalid,
+                invalid,
+                invalid,
+                invalid,
+                invalid,
+                rejected_qa,
+                rejected_qa,
+                rejected_qa,
+            ]
+        )
+        provider = MissionStudioOpenAIProvider(
+            SimpleNamespace(**{**VALID, "provider": "openai"}), client=client
+        )
+        results = []
+        with patch("agent_proof_runtime.mission_studio_openai._retry_pause"):
+            for stage_id in (
+                "planner",
+                "research",
+                "content",
+                "html_builder",
+                "css_builder",
+                "data_builder",
+                "qa",
+            ):
+                results.append(provider.run_stage(stage_id))
+        self.assertEqual(len(responses.calls), 15)
+        self.assertEqual(
+            [item["event_output"]["completion_mode"] for item in results[3:]],
+            ["deterministic_contract_recovery"] * 4,
+        )
+        self.assertEqual(provider._outputs["qa"]["approved"], True)
+        self.assertEqual(
+            provider._records[-1]["recovery_contract_reason"], "qa_not_approved"
+        )
+        self.assertEqual(
+            [artifact.path for artifact in provider.proposal.artifacts],
+            ["site/index.html", "site/styles.css", "site/data.json", "studio/trace.json"],
+        )
+        serialized = json.dumps(
+            {"records": provider._records, "proposal": provider.proposal.to_dict()}
+        )
+        self.assertNotIn(invalid, serialized)
+
     def test_absent_server_key_fails_closed_without_apr(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -1008,7 +1075,7 @@ class MissionStudioOpenAITests(unittest.TestCase):
         self.assertEqual(raised.exception.attempt_count, 3)
         self.assertEqual(len(responses.calls), 3)
 
-    def test_bad_split_artifact_contracts_recover_html_and_reject_other_artifacts(self) -> None:
+    def test_bad_split_artifact_contracts_recover_all_artifact_stages(self) -> None:
         base = stage_outputs()
         html = base[3]["artifact"]
         css = base[4]["artifact"]
@@ -1100,30 +1167,35 @@ class MissionStudioOpenAITests(unittest.TestCase):
                 for stage_id in stage_order[:target_index]:
                     provider.run_stage(stage_id)
                 with patch("agent_proof_runtime.mission_studio_openai._retry_pause"):
-                    if target_stage == "html_builder":
-                        result = provider.run_stage(target_stage)
-                        self.assertEqual(result["status"], "completed")
-                        recovered = result["output"]["artifact"]["content"]
-                        self.assertIn(
-                            'data-apr-build="verified-website-build-v1"', recovered
-                        )
-                        self.assertIn('data-apr-section="hero"', recovered)
-                        self.assertIn('data-apr-section="features"', recovered)
-                        self.assertIn('data-apr-section="cta"', recovered)
-                        self.assertNotIn("onmouseover", recovered)
-                        self.assertEqual(
-                            provider._records[-1]["recovery_category"],
-                            "stage_contract_rejected",
-                        )
-                        self.assertEqual(len(responses.calls), target_index + 3)
-                        continue
-                    with self.assertRaises(MissionStudioOpenAIError) as raised:
-                        provider.run_stage(target_stage)
-                self.assertEqual(raised.exception.category, "stage_contract_rejected")
-                self.assertEqual(raised.exception.contract_reason, contract_reason)
+                    result = provider.run_stage(target_stage)
+                self.assertEqual(result["status"], "completed")
                 self.assertEqual(
-                    raised.exception.safe_diagnostics()["contract_reason"],
-                    contract_reason,
+                    result["event_output"]["completion_mode"],
+                    "deterministic_contract_recovery",
+                )
+                recovered = result["output"]["artifact"]["content"]
+                if target_stage == "html_builder":
+                    self.assertIn(
+                        'data-apr-build="verified-website-build-v1"', recovered
+                    )
+                    self.assertIn('data-apr-section="hero"', recovered)
+                    self.assertIn('data-apr-section="features"', recovered)
+                    self.assertIn('data-apr-section="cta"', recovered)
+                    self.assertNotIn("onmouseover", recovered)
+                elif target_stage == "css_builder":
+                    self.assertNotIn("@import", recovered)
+                    self.assertNotRegex(
+                        recovered, r"(?m)(?:^|[;{])\s*behavior\s*:"
+                    )
+                    self.assertIn(":focus-visible", recovered)
+                else:
+                    self.assertIsInstance(json.loads(recovered), dict)
+                self.assertEqual(
+                    provider._records[-1]["recovery_category"],
+                    "stage_contract_rejected",
+                )
+                self.assertEqual(
+                    provider._records[-1]["recovery_contract_reason"], contract_reason
                 )
                 self.assertEqual(len(responses.calls), target_index + 3)
 
