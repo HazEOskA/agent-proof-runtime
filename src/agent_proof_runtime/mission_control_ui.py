@@ -575,6 +575,9 @@ _DASHBOARD = r'''<!doctype html>
     .studio-result.complete { border-color: #2b6c61; }
     .studio-result.complete .result-title { color: #73e7d5; }
     .result-title { margin: 9px 0 0; font-size: 22px; }
+    .studio-preview-link { display: inline-flex; margin-top: 12px; padding: 10px 13px; border: 1px solid #36f0e4; border-radius: 6px; background: #0a2a29; color: #8ff8ef; font: 900 9px/1 var(--mono); letter-spacing: .1em; text-decoration: none; }
+    .studio-preview-link:hover { background: #103936; color: #d8fffb; }
+    .studio-preview-link[hidden] { display: none; }
 
     .toast { position: fixed; right: 20px; bottom: 20px; z-index: 50; width: min(430px, calc(100% - 40px)); padding: 14px 16px; border: 1px solid #37d9d0; border-radius: 10px; background: #0c2529; color: #d9f9f6; box-shadow: 0 18px 70px #000b, 0 0 25px rgba(54,240,228,.12); font: 700 11px/1.5 var(--mono); opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(150%); transition: transform .22s ease, opacity .18s ease, visibility 0s linear .22s; }
     .toast.show { opacity: 1; visibility: visible; transform: translateY(0); transition-delay: 0s; }
@@ -763,7 +766,7 @@ _DASHBOARD = r'''<!doctype html>
         </div>
         <div class="studio-bottom">
           <div class="studio-timeline"><div class="zone-label"><span>BACKEND EVENT TIMELINE</span><span id="studio-event-count">0 events</span></div><ol id="studio-events"><li><time>—</time><span>Awaiting mission start</span></li></ol></div>
-          <div class="studio-result" id="studio-result"><div class="zone-label"><span>INDEPENDENT VERIFIER</span><span>Recomputes proof integrity</span></div><h3 class="result-title" id="studio-result-title">AWAITING ARTIFACT</h3><div class="studio-result-grid"><div><small>MISSION</small><strong id="studio-mission-result">—</strong></div><div><small>PROOF</small><strong id="studio-proof-result">—</strong></div><div><small>ANCHOR</small><strong id="studio-anchor-result">UNANCHORED</strong></div></div></div>
+          <div class="studio-result" id="studio-result"><div class="zone-label"><span>INDEPENDENT VERIFIER</span><span>Recomputes proof integrity</span></div><h3 class="result-title" id="studio-result-title">AWAITING ARTIFACT</h3><div class="studio-result-grid"><div><small>MISSION</small><strong id="studio-mission-result">—</strong></div><div><small>PROOF</small><strong id="studio-proof-result">—</strong></div><div><small>ANCHOR</small><strong id="studio-anchor-result">UNANCHORED</strong></div></div><a class="studio-preview-link" id="studio-preview-link" href="#" target="_blank" rel="noopener" hidden>OPEN GENERATED SITE ↗</a></div>
         </div>
       </section>
 
@@ -911,6 +914,14 @@ _DASHBOARD = r'''<!doctype html>
       const terminal = session.state === 'completed' || session.state === 'failed';
       $('#studio-result-title').textContent = session.state === 'completed' ? 'ARTIFACT READY' : (session.state === 'failed' ? 'FAILED' : 'AWAITING VERIFIER');
       $('#studio-result').classList.toggle('complete', session.state === 'completed');
+      const previewLink = $('#studio-preview-link');
+      if (session.state === 'completed' && session.apr_run_id) {
+        previewLink.href = `/runs/${encodeURIComponent(session.apr_run_id)}/artifact/site/index.html`;
+        previewLink.hidden = false;
+      } else if (session.state !== 'completed') {
+        previewLink.hidden = true;
+        previewLink.setAttribute('href', '#');
+      }
       if (terminal) {
         window.clearTimeout(studioPollTimer);
         studioPollTimer = null;
@@ -952,6 +963,8 @@ _DASHBOARD = r'''<!doctype html>
     studioStart.addEventListener('click', async () => {
       if (studioStart.disabled) return;
       studioStart.disabled = true;
+      $('#studio-preview-link').hidden = true;
+      $('#studio-preview-link').setAttribute('href', '#');
       try {
         const body = await api('/api/studio/start', {method:'POST', headers:{'Content-Type':'application/json','X-APR-Token':token}, body:JSON.stringify({mission_type:'verified_website_build',brief:normalizedStudioBrief(),provider:studioProvider.value})});
         studioSessionId = body.session.session_id;
