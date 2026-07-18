@@ -840,11 +840,11 @@ _DASHBOARD = r'''<!doctype html>
     .quick-nav a { font-size: 13px; }
     .quick-nav .nav-studio { margin-left: 0; border: 1px solid #34545b; background: rgba(8,22,26,.7); color: #83b0b4; }
 
-    #control-room { order: 3; }
-    #system-status { order: 4; }
-    #missions-section { order: 5; }
-    #runs-section { order: 6; }
-    #mission-studio { order: 7; }
+    #mission-studio { order: 3; }
+    #missions-section { order: 4; }
+    #control-room { order: 5; }
+    #system-status { order: 6; }
+    #runs-section { order: 7; }
     .command-dock { order: 8; }
     .control-room {
       padding: 20px;
@@ -984,10 +984,151 @@ _DASHBOARD = r'''<!doctype html>
     #missions .meta div { border-radius: 3px; background: rgba(4,14,17,.8); }
     #missions button { border-radius: 4px; }
 
+    #mission-studio {
+      margin-top: 18px;
+      border-color: #46777d;
+      background:
+        linear-gradient(90deg, rgba(255,255,255,.014) 1px, transparent 1px),
+        linear-gradient(rgba(255,255,255,.014) 1px, transparent 1px),
+        rgba(5,17,20,.72);
+      background-size: 18px 18px, 18px 18px, auto;
+    }
+    #mission-studio .studio-zones { align-items: stretch; }
+    #mission-studio .agent-zone {
+      position: relative;
+      min-height: 182px;
+      overflow: hidden;
+      border-color: rgba(62,107,113,.5);
+      background: linear-gradient(145deg, rgba(7,24,28,.72), rgba(4,14,18,.88));
+    }
+    .agent-dock-state {
+      position: absolute;
+      z-index: 5;
+      inset: 42px 18px 18px;
+      display: grid;
+      place-content: center;
+      gap: 8px;
+      border: 1px dashed #3a6d72;
+      border-radius: 7px;
+      background:
+        repeating-linear-gradient(90deg, transparent 0 24px, rgba(68,132,136,.08) 24px 25px),
+        rgba(4,16,19,.76);
+      color: #78a6aa;
+      text-align: center;
+      transition: opacity .24s ease, transform .35s ease, visibility 0s linear .35s;
+    }
+    .agent-dock-state strong { color: #9adbd8; font: 900 11px/1 var(--mono); letter-spacing: .14em; }
+    .agent-dock-state span { font: 750 8px/1.4 var(--mono); letter-spacing: .09em; text-transform: uppercase; }
+    #mission-studio:not([data-run-state="idle"]) .agent-dock-state {
+      opacity: 0;
+      visibility: hidden;
+      transform: translateX(18%);
+      transition-delay: 0s;
+    }
+    #mission-studio[data-run-state="idle"] .agent-pipeline {
+      opacity: 0;
+      visibility: hidden;
+      transform: translate3d(-24%,0,0) scale(.92);
+      filter: blur(5px);
+      pointer-events: none;
+    }
+    #mission-studio:not([data-run-state="idle"]) .agent-pipeline {
+      opacity: 1;
+      visibility: visible;
+      transform: none;
+      filter: none;
+      transition: opacity .35s ease, transform .7s cubic-bezier(.2,.8,.2,1), filter .45s ease;
+    }
+    #mission-studio:not([data-run-state="idle"]) .studio-agent {
+      animation: agent-deploy .55s cubic-bezier(.2,.8,.2,1) both;
+    }
+    #mission-studio:not([data-run-state="idle"]) .studio-agent:nth-child(2) { animation-delay: .06s; }
+    #mission-studio:not([data-run-state="idle"]) .studio-agent:nth-child(3) { animation-delay: .12s; }
+    #mission-studio:not([data-run-state="idle"]) .studio-agent:nth-child(4) { animation-delay: .18s; }
+    #mission-studio:not([data-run-state="idle"]) .studio-agent:nth-child(5) { animation-delay: .24s; }
+    #mission-studio:not([data-run-state="idle"]) .studio-agent:nth-child(6) { animation-delay: .30s; }
+    #mission-studio:not([data-run-state="idle"]) .studio-agent:nth-child(7) { animation-delay: .36s; }
+    @keyframes agent-deploy {
+      from { opacity: 0; transform: translateX(-28px) scale(.92); }
+      to { opacity: 1; transform: translateX(0) scale(1); }
+    }
+    #mission-studio .agent-pipeline {
+      transition: opacity .22s ease, transform .38s ease, filter .3s ease, visibility 0s linear .38s;
+    }
+    #mission-studio .agent-pipeline::before {
+      height: 2px;
+      background: repeating-linear-gradient(90deg, #27565b 0 10px, #5ab9b7 10px 15px, #27565b 15px 28px);
+      background-size: 28px 2px;
+    }
+    #mission-studio:not([data-run-state="idle"]) .agent-pipeline::before { animation: agent-bus 1s linear infinite; }
+    @keyframes agent-bus { to { background-position-x: 28px; } }
+    #mission-studio .studio-agent {
+      border: 2px solid rgba(66,96,104,.34);
+      border-radius: 4px;
+      background:
+        repeating-linear-gradient(90deg, transparent 0 8px, rgba(116,151,155,.48) 8px 10px, transparent 10px 16px) top/100% 5px no-repeat,
+        repeating-linear-gradient(90deg, transparent 0 8px, rgba(116,151,155,.48) 8px 10px, transparent 10px 16px) bottom/100% 5px no-repeat,
+        linear-gradient(145deg, rgba(15,35,39,.96), rgba(5,16,19,.98));
+      box-shadow: inset 0 0 0 1px rgba(133,180,183,.06);
+    }
+    #mission-studio .studio-agent::before {
+      content: "";
+      position: absolute;
+      z-index: 0;
+      inset: 4px;
+      pointer-events: none;
+      background: linear-gradient(180deg, transparent 0 35%, rgba(54,240,228,.2) 50%, transparent 65%);
+      background-size: 100% 36px;
+      opacity: 0;
+    }
+    #mission-studio .studio-agent[data-status="working"]::before {
+      opacity: 1;
+      animation: agent-chip-scan .85s linear infinite;
+    }
+    @keyframes agent-chip-scan { from { background-position-y: -36px; } to { background-position-y: 136px; } }
+    #mission-studio .studio-agent[data-status="working"] {
+      border-color: #4e8fff;
+      box-shadow: inset 0 0 18px rgba(78,143,255,.08);
+    }
+    #mission-studio .studio-agent[data-status="handing_off"] { border-color: #36f0e4; }
+    #mission-studio .studio-agent[data-status="completed"] { border-color: #3a8c62; }
+    #mission-studio .trust-zone { position: relative; overflow: hidden; }
+    #mission-studio .trust-zone::before {
+      content: "";
+      position: absolute;
+      z-index: 3;
+      left: -15px;
+      top: 50%;
+      width: 28px;
+      height: 2px;
+      background: repeating-linear-gradient(90deg, #347170 0 5px, #7ee3dc 5px 9px);
+      animation: agent-bus .8s linear infinite;
+    }
+    #mission-studio .trust-gate { position: relative; overflow: hidden; }
+    #mission-studio .trust-gate::before {
+      content: "";
+      position: absolute;
+      inset: -50% 0 auto;
+      height: 46%;
+      background: linear-gradient(180deg, transparent, rgba(54,240,228,.1), transparent);
+      opacity: 0;
+    }
+    #mission-studio[data-run-state="active"] .trust-gate::before,
+    #mission-studio[data-run-state="deploying"] .trust-gate::before { opacity: 1; animation: gate-scan 1.4s linear infinite; }
+    @keyframes gate-scan { to { transform: translateY(320%); } }
+    #mission-studio .studio-bottom {
+      overflow: hidden;
+      max-height: 440px;
+      opacity: 1;
+      transition: max-height .55s ease, opacity .3s ease, margin .45s ease;
+    }
+    #mission-studio[data-run-state="idle"] .studio-bottom { max-height: 0; margin-top: 0; opacity: 0; }
+    #mission-studio[data-run-state="complete"] .studio-progress > span { background: linear-gradient(90deg,#38d892,#68f79a); box-shadow: none; }
+    #mission-studio[data-run-state="failed"] .studio-progress > span { background: linear-gradient(90deg,#a52e3c,#ff5d68); box-shadow: none; }
+
     #runs-section { margin-top: 28px; }
     .proof-console, .evidence { border-radius: 8px; background: rgba(5,16,19,.68); }
     .command-dock { border-color: #65809b; background: rgba(42,56,73,.72); }
-    #mission-studio { margin-top: 34px; }
 
     @media (max-width: 900px) {
       .masthead { grid-template-columns: 1fr; min-height: 0; }
@@ -1108,7 +1249,7 @@ _DASHBOARD = r'''<!doctype html>
         <div class="nav-tools"><a class="nav-studio" href="#mission-studio">Mission Studio</a><button class="icon-button" type="button" data-refresh aria-label="Refresh evidence">↻</button></div>
       </nav>
 
-      <section class="studio" id="mission-studio" aria-labelledby="studio-title">
+      <section class="studio" id="mission-studio" data-run-state="idle" aria-labelledby="studio-title">
         <div class="studio-intro">
           <div>
             <div class="eyebrow">APR MISSION STUDIO</div>
@@ -1132,6 +1273,7 @@ _DASHBOARD = r'''<!doctype html>
         <div class="studio-zones">
           <div class="agent-zone">
             <div class="zone-label"><span>AGENT ORCHESTRATION</span><span>Produces the work</span></div>
+            <div class="agent-dock-state" aria-hidden="true"><strong>7 AGENTS DOCKED</strong><span>Start mission to deploy the pipeline</span></div>
             <div class="agent-pipeline" id="studio-agents">
               <article class="studio-agent" data-studio-agent="planner" data-status="ready"><span class="agent-index">01</span><h3>MISSION PLANNER</h3><span class="agent-status">READY</span><code class="agent-hash">No output hash</code><span class="handoff-packet"></span></article>
               <article class="studio-agent" data-studio-agent="research" data-status="ready"><span class="agent-index">02</span><h3>RESEARCH AGENT</h3><span class="agent-status">READY</span><code class="agent-hash">No output hash</code><span class="handoff-packet"></span></article>
@@ -1284,6 +1426,8 @@ _DASHBOARD = r'''<!doctype html>
     }
 
     function renderStudio(session) {
+      const studioNode = $('#mission-studio');
+      studioNode.dataset.runState = session.state === 'completed' ? 'complete' : (session.state === 'failed' ? 'failed' : 'active');
       $('#studio-progress').style.width = `${session.progress || 0}%`;
       $('#studio-current').textContent = `${String(session.current_stage || session.state || 'ready').replaceAll('_',' ').toUpperCase()} · ${session.progress || 0}%`;
       $('#studio-hash').textContent = session.current_output_hash || 'No stage output recorded';
@@ -1343,6 +1487,7 @@ _DASHBOARD = r'''<!doctype html>
         studioPollTimer = window.setTimeout(pollStudio, 180);
       } catch (error) {
         studioSessionId = null;
+        $('#mission-studio').dataset.runState = 'failed';
         validateStudioBrief();
         toast(error.message, true);
       }
@@ -1358,6 +1503,7 @@ _DASHBOARD = r'''<!doctype html>
     studioStart.addEventListener('click', async () => {
       if (studioStart.disabled) return;
       studioStart.disabled = true;
+      $('#mission-studio').dataset.runState = 'deploying';
       $('#studio-preview-link').hidden = true;
       $('#studio-preview-link').setAttribute('href', '#');
       try {
@@ -1367,6 +1513,7 @@ _DASHBOARD = r'''<!doctype html>
         studioPollTimer = window.setTimeout(pollStudio, 120);
       } catch (error) {
         studioSessionId = null;
+        $('#mission-studio').dataset.runState = 'idle';
         validateStudioBrief();
         toast(error.message, true);
       }
