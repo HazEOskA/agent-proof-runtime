@@ -688,6 +688,330 @@ _DASHBOARD = r'''<!doctype html>
       .studio-agent::after { display: none; }
     }
 
+    /* Reference composition: functional Mission Control rendered as a PCB assembly. */
+    body {
+      background:
+        linear-gradient(180deg, rgba(8,22,28,.74), rgba(3,11,15,.94)),
+        #051014;
+    }
+    body::before {
+      opacity: .58;
+      background-image:
+        radial-gradient(circle, rgba(90,174,177,.46) 1px, transparent 1.35px),
+        linear-gradient(90deg, transparent 49.72%, rgba(62,120,126,.2) 50%, transparent 50.28%),
+        linear-gradient(0deg, transparent 49.72%, rgba(62,120,126,.16) 50%, transparent 50.28%);
+      background-size: 18px 18px, 144px 144px, 144px 144px;
+    }
+    .shell { width: min(1180px, calc(100% - 22px)); padding-top: 10px; }
+    .review-strip {
+      min-height: 48px;
+      border-color: #3c636b;
+      border-radius: 13px;
+      background: rgba(31,49,56,.72);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.055);
+    }
+    .review-strip > span { color: #a9bdc1; }
+    .micro-status { background: rgba(15,35,40,.76); }
+    .micro-status.bad { box-shadow: inset 0 0 18px rgba(255,57,74,.14); }
+
+    .masthead {
+      grid-template-columns: minmax(480px, 1.15fr) 430px;
+      align-items: start;
+      min-height: 214px;
+      padding: 14px 14px 0;
+    }
+    .brand-lockup { width: min(560px, 100%); height: 190px; overflow: hidden; }
+    .brand-mask {
+      width: 560px;
+      height: 190px;
+      max-width: 100%;
+      clip-path: none;
+      border: 0;
+      background: transparent;
+    }
+    .brand-mask::after { display: none; }
+    .brand-source {
+      left: -6px;
+      top: -60px;
+      width: 864px;
+      height: 1536px;
+      filter: saturate(.82) contrast(1.1) brightness(.86);
+    }
+    .brand-circuit { display: none; }
+
+    .runtime-stack {
+      position: relative;
+      display: block;
+      width: 430px;
+      height: 210px;
+      min-width: 430px;
+      overflow: visible;
+    }
+    .runtime-traces { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; }
+    .runtime-traces path { fill: none; stroke: #416d75; stroke-width: 1.3; vector-effect: non-scaling-stroke; }
+    .runtime-traces path.runtime-signal { stroke: #48cbc7; stroke-dasharray: 3 11; animation: trace-flow 6s linear infinite; }
+    .runtime-traces circle { fill: #071519; stroke: #5cabb0; stroke-width: 1.2; }
+    .runtime-openai-card {
+      position: absolute;
+      z-index: 2;
+      top: 8px;
+      left: 12px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      width: 172px;
+      min-height: 72px;
+      padding: 10px 12px;
+      border: 1px solid #50656d;
+      border-radius: 10px;
+      background: linear-gradient(145deg, rgba(67,83,92,.88), rgba(18,36,43,.92));
+      box-shadow: 0 10px 22px rgba(0,0,0,.22), inset 0 1px rgba(255,255,255,.08);
+    }
+    .runtime-openai-card .openai-blossom { width: 42px; height: 42px; color: #eef6f7; }
+    .runtime-openai-card > div { min-width: 0; }
+    .runtime-openai-card .openai-wordmark { display: block; width: 90px; height: 26px; color: #eef6f7; }
+    .runtime-openai-card span { display: block; margin-top: 3px; color: #a8bbc0; font: 700 10px/1 var(--mono); }
+    .runtime-gate {
+      position: absolute;
+      z-index: 3;
+      top: 76px;
+      left: 166px;
+      display: grid;
+      place-items: center;
+      width: 58px;
+      height: 49px;
+      border: 2px solid #52d9d6;
+      border-radius: 6px 20px 20px 6px;
+      background: rgba(11,48,55,.92);
+      color: #a6fbf7;
+      font: 900 15px/1 var(--mono);
+    }
+    .runtime-chip.codex-core {
+      position: absolute;
+      z-index: 3;
+      top: 39px;
+      right: 17px;
+      width: 112px;
+      height: 112px;
+      padding: 12px;
+      border: 8px double #44717b;
+      border-radius: 8px;
+      background: linear-gradient(145deg, #173b45, #0a1b21);
+      opacity: 1;
+      box-shadow: 0 0 0 1px #77c9cd, 0 12px 24px rgba(0,0,0,.28);
+    }
+    .runtime-chip.codex-core::before {
+      content: "";
+      position: absolute;
+      inset: -13px;
+      z-index: -1;
+      background:
+        repeating-linear-gradient(90deg, transparent 0 9px, #63858b 9px 12px, transparent 12px 18px) top/100% 7px no-repeat,
+        repeating-linear-gradient(90deg, transparent 0 9px, #63858b 9px 12px, transparent 12px 18px) bottom/100% 7px no-repeat,
+        repeating-linear-gradient(0deg, transparent 0 9px, #63858b 9px 12px, transparent 12px 18px) left/7px 100% no-repeat,
+        repeating-linear-gradient(0deg, transparent 0 9px, #63858b 9px 12px, transparent 12px 18px) right/7px 100% no-repeat;
+    }
+    .runtime-chip.codex-core .codex-mark { width: 42px; height: 42px; }
+    .runtime-chip.codex-core span { margin-top: 4px; color: #b6f5f1; font: 900 12px/1 var(--mono); }
+    .runtime-chip.codex-core small { margin-top: 4px; color: #6eb6b6; font: 800 8px/1 var(--mono); }
+    .model-core, .agent-core {
+      position: absolute;
+      z-index: 2;
+      display: grid;
+      place-items: center;
+      border: 5px double #394f55;
+      border-radius: 5px;
+      background: #111e22;
+      color: #d6e5e6;
+      box-shadow: 0 9px 18px rgba(0,0,0,.22);
+      font: 900 13px/1 var(--mono);
+    }
+    .model-core { left: 222px; bottom: 2px; width: 68px; height: 60px; }
+    .agent-core { right: 4px; bottom: 8px; width: 54px; height: 46px; color: #9bb2b6; font-size: 10px; }
+    .model-core small, .agent-core small { display: block; color: #789297; font-size: 8px; }
+
+    main { display: flex; flex-direction: column; }
+    .hero { order: 1; grid-template-columns: 1fr; min-height: 246px; padding: 0 14px 28px; }
+    .hero > div { max-width: 910px; }
+    .hero h1 { max-width: 900px; margin-top: 12px; font-size: clamp(52px, 6.4vw, 82px); }
+    .hero .lead { max-width: 820px; }
+    .hero-proof { display: none; }
+    .quick-nav { order: 2; margin-bottom: 0; border-color: #4a6f76; background: rgba(31,50,56,.72); }
+    .quick-nav a { font-size: 13px; }
+    .quick-nav .nav-studio { margin-left: 0; border: 1px solid #34545b; background: rgba(8,22,26,.7); color: #83b0b4; }
+
+    #control-room { order: 3; }
+    #system-status { order: 4; }
+    #missions-section { order: 5; }
+    #runs-section { order: 6; }
+    #mission-studio { order: 7; }
+    .command-dock { order: 8; }
+    .control-room {
+      padding: 20px;
+      border-color: #54b7b6;
+      background: rgba(12,30,35,.68);
+      box-shadow: inset 0 0 0 1px rgba(84,183,182,.13), 0 0 24px rgba(35,128,130,.08);
+    }
+    .control-room .section-head { padding: 0 2px; }
+    .flow-board { min-height: 210px; margin-bottom: 12px; border-color: #315860; background-color: rgba(7,20,24,.7); }
+    .flow-grid { gap: 8px; padding: 34px 14px 16px; }
+    .flow-step {
+      min-height: 108px;
+      padding: 12px;
+      border-radius: 6px;
+      background: linear-gradient(145deg, rgba(24,70,72,.72), rgba(21,43,53,.78));
+    }
+    .flow-step:nth-child(2), .flow-step:nth-child(4) { background: linear-gradient(145deg, rgba(24,63,72,.7), rgba(31,49,72,.8)); }
+    .flow-step::before { top: -17px; }
+    .flow-context { display: none; }
+    .tamper-branch { margin-bottom: 12px; }
+    .integrity-alert {
+      position: relative;
+      isolation: isolate;
+      overflow: hidden;
+      min-height: 132px;
+      border-color: #6d343c;
+      background: linear-gradient(135deg, rgba(60,18,24,.72), rgba(21,15,19,.9));
+    }
+    .integrity-alert > div:not(.failure-gates) { position: relative; z-index: 2; }
+    .alert-circuit { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; opacity: .32; }
+    .alert-circuit path { fill: none; stroke: #ff6974; stroke-width: 1.15; vector-effect: non-scaling-stroke; }
+    .alert-circuit circle { fill: #271116; stroke: #ff6974; stroke-width: 1.2; }
+    .failure-gates { position: absolute; z-index: 1; inset: 0; pointer-events: none; }
+    .failure-gates span {
+      position: absolute;
+      top: 45px;
+      display: grid;
+      place-items: center;
+      width: 50px;
+      height: 42px;
+      border: 2px solid #ff6974;
+      border-radius: 5px 18px 18px 5px;
+      background: rgba(71,19,27,.85);
+      color: #ff9da4;
+      font: 900 11px/1 var(--mono);
+    }
+    .failure-gates span:first-child { left: 43%; }
+    .failure-gates span:last-child { left: 53%; }
+    .integrity-alert.verified { background: linear-gradient(135deg, rgba(12,48,38,.72), rgba(8,24,22,.92)); }
+    .integrity-alert.verified .alert-circuit { opacity: .16; }
+    .integrity-alert.verified .alert-circuit path, .integrity-alert.verified .alert-circuit circle { stroke: #68f79a; }
+    .integrity-alert.verified .failure-gates span { border-color: #4aa66a; background: rgba(13,53,38,.72); color: #8af8ad; }
+    .integrity-alert.failed .alert-circuit { opacity: .7; }
+
+    .stats { margin-top: 10px; border-color: #35545b; border-radius: 9px; background: rgba(7,18,22,.7); }
+    .stat { min-height: 86px; padding: 15px 17px; }
+    .stat-label::before { box-shadow: none; }
+
+    #missions-section { margin-top: 28px; }
+    #missions-section .section-head { margin-bottom: 14px; }
+    .missions {
+      position: relative;
+      isolation: isolate;
+      gap: 26px;
+      padding: 28px 22px;
+      border: 1px solid rgba(57,90,97,.46);
+      border-radius: 10px;
+      background:
+        linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px),
+        linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+        rgba(4,15,18,.48);
+      background-size: 18px 18px, 18px 18px, auto;
+    }
+    .missions::before {
+      content: "";
+      position: absolute;
+      z-index: 0;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 14px;
+      border-top: 1px solid #3d7a7c;
+      border-bottom: 1px solid #274f53;
+      background: repeating-linear-gradient(90deg, transparent 0 13px, rgba(71,175,176,.7) 13px 16px, transparent 16px 28px);
+    }
+    .missions::after {
+      content: "MISSION BUS";
+      position: absolute;
+      z-index: 3;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%,-50%);
+      padding: 7px 10px;
+      border: 1px solid #4ca5a5;
+      border-radius: 4px 14px 14px 4px;
+      background: #0b2e33;
+      color: #89e5e0;
+      font: 900 8px/1 var(--mono);
+      letter-spacing: .08em;
+    }
+    #missions .card {
+      isolation: isolate;
+      z-index: 1;
+      margin: 0 7px;
+      padding: 21px;
+      border: 2px solid #456a70;
+      border-radius: 5px;
+      background: linear-gradient(145deg, rgba(18,39,44,.98), rgba(6,18,22,.98));
+      box-shadow: inset 0 0 0 1px rgba(134,181,185,.12), 0 12px 24px rgba(0,0,0,.2);
+    }
+    #missions .card > * { position: relative; z-index: 2; }
+    #missions .card::before {
+      content: "";
+      position: absolute;
+      z-index: 3;
+      top: 11px;
+      left: 11px;
+      width: 8px;
+      height: 8px;
+      border: 1px solid #7ca3a7;
+      border-radius: 50%;
+      background: #071316;
+    }
+    #missions .card::after {
+      content: "";
+      position: absolute;
+      z-index: -1;
+      inset: -13px;
+      pointer-events: none;
+      background:
+        repeating-linear-gradient(90deg, transparent 0 12px, #6c8589 12px 16px, transparent 16px 25px) top/100% 9px no-repeat,
+        repeating-linear-gradient(90deg, transparent 0 12px, #6c8589 12px 16px, transparent 16px 25px) bottom/100% 9px no-repeat,
+        repeating-linear-gradient(0deg, transparent 0 12px, #6c8589 12px 16px, transparent 16px 25px) left/9px 100% no-repeat,
+        repeating-linear-gradient(0deg, transparent 0 12px, #6c8589 12px 16px, transparent 16px 25px) right/9px 100% no-repeat;
+    }
+    #missions .card h3 { padding-left: 4px; font-family: var(--mono); letter-spacing: -.035em; }
+    #missions .meta div { border-radius: 3px; background: rgba(4,14,17,.8); }
+    #missions button { border-radius: 4px; }
+
+    #runs-section { margin-top: 28px; }
+    .proof-console, .evidence { border-radius: 8px; background: rgba(5,16,19,.68); }
+    .command-dock { border-color: #65809b; background: rgba(42,56,73,.72); }
+    #mission-studio { margin-top: 34px; }
+
+    @media (max-width: 900px) {
+      .masthead { grid-template-columns: 1fr; min-height: 0; }
+      .brand-lockup { width: 560px; max-width: 100%; }
+      .runtime-stack { justify-self: start; margin-top: 2px; }
+      .hero { padding-top: 18px; }
+      .failure-gates { display: none; }
+      .missions::after { display: none; }
+    }
+    @media (max-width: 640px) {
+      .review-strip > span { max-width: 150px; }
+      .masthead { padding-top: 8px; }
+      .brand-lockup { height: 152px; }
+      .brand-mask { width: 470px; height: 152px; }
+      .brand-source { width: 720px; height: 1280px; top: -50px; }
+      .runtime-stack { width: 430px; height: 170px; transform: scale(.76); transform-origin: left top; margin-bottom: -38px; }
+      .hero h1 { font-size: clamp(42px, 12vw, 58px); }
+      .quick-nav .nav-studio { display: none; }
+      .control-room { padding: 13px; }
+      .missions { grid-template-columns: 1fr; gap: 34px; padding: 24px 18px; }
+      .missions::before { top: 0; bottom: 0; left: 50%; right: auto; width: 12px; height: auto; border: 0; border-left: 1px solid #3d7a7c; border-right: 1px solid #274f53; }
+      #missions .card { margin: 0 8px; }
+    }
+
     @media (prefers-reduced-motion: reduce) {
       html { scroll-behavior: auto; }
       *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -727,7 +1051,7 @@ _DASHBOARD = r'''<!doctype html>
 
   <div class="shell">
     <div class="review-strip">
-      <span><strong>APR Mission Control</strong> · runtime-backed evidence interface</span>
+      <span><strong>APR Mission Control</strong> · live runtime · evidence-backed interface</span>
       <div class="strip-statuses">
         <span class="micro-status" id="ready-status">Checking</span>
         <span class="micro-status good" id="verified-status">Verifier</span>
@@ -745,9 +1069,19 @@ _DASHBOARD = r'''<!doctype html>
         </svg>
       </div>
       <div class="runtime-stack" aria-label="Runtime providers">
-        <div class="runtime-chip openai-chip" role="img" aria-label="OpenAI provider"><svg class="openai-wordmark" aria-hidden="true"><use href="#openai-wordmark"></use></svg></div>
-        <div class="runtime-chip" role="img" aria-label="ChatGPT operator"><svg aria-hidden="true"><use href="#openai-blossom"></use></svg></div>
-        <div class="runtime-chip primary" role="img" aria-label="Codex build runtime"><svg class="codex-mark" aria-hidden="true"><use href="#codex-app-mark"></use></svg></div>
+        <svg class="runtime-traces" viewBox="0 0 430 210" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M18 38H112V76H176"/><path d="M18 54H96V92H176"/><path d="M176 84H238V56H408"/><path d="M176 92H254V104H408"/><path d="M176 100H224V170H292"/><path d="M314 70V26H408"/><path d="M314 142V190H408"/>
+          <path class="runtime-signal" d="M18 92H176V100H224V170H292"/>
+          <circle cx="176" cy="84" r="4"/><circle cx="176" cy="100" r="4"/><circle cx="224" cy="170" r="4"/><circle cx="314" cy="70" r="4"/><circle cx="314" cy="142" r="4"/>
+        </svg>
+        <div class="runtime-openai-card" role="img" aria-label="OpenAI and ChatGPT runtime">
+          <svg class="openai-blossom" aria-hidden="true"><use href="#openai-blossom"></use></svg>
+          <div><svg class="openai-wordmark" aria-hidden="true"><use href="#openai-wordmark"></use></svg><span>ChatGPT</span></div>
+        </div>
+        <div class="runtime-gate" aria-hidden="true">AND</div>
+        <div class="runtime-chip primary codex-core" role="img" aria-label="Codex build runtime"><svg class="codex-mark" aria-hidden="true"><use href="#codex-app-mark"></use></svg><span>CODEX</span><small>v0.1.3</small></div>
+        <div class="model-core" role="img" aria-label="GPT 5.6 model">GPT<small>5.6</small></div>
+        <div class="agent-core" aria-hidden="true">AI<small>AGENT</small></div>
         <span class="runtime-version-note">APR <span id="runtime-version">v—</span></span>
       </div>
     </header>
@@ -767,12 +1101,11 @@ _DASHBOARD = r'''<!doctype html>
       </section>
 
       <nav class="quick-nav" aria-label="Mission Control sections">
-        <a href="#mission-studio">Mission Studio</a><span class="slash">/</span>
         <a href="#missions-section">Missions</a><span class="slash">/</span>
         <a href="#runs-section">Runs</a><span class="slash">/</span>
-        <a href="#control-room">Control Room</a><span class="slash">/</span>
+        <a href="#system-status">gVisor</a><span class="slash">/</span>
         <a href="#evidence">Latest Proof</a>
-        <div class="nav-tools"><button class="icon-button" type="button" data-refresh aria-label="Refresh evidence">↻</button></div>
+        <div class="nav-tools"><a class="nav-studio" href="#mission-studio">Mission Studio</a><button class="icon-button" type="button" data-refresh aria-label="Refresh evidence">↻</button></div>
       </nav>
 
       <section class="studio" id="mission-studio" aria-labelledby="studio-title">
@@ -861,6 +1194,11 @@ _DASHBOARD = r'''<!doctype html>
           </div>
         </div>
         <div class="integrity-alert" id="integrity-alert" aria-live="polite">
+          <svg class="alert-circuit" viewBox="0 0 1000 132" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M12 35H430V54H505"/><path d="M12 91H390V72H505"/><path d="M555 63H646V35H730"/><path d="M555 63H646V99H730"/>
+            <circle cx="430" cy="54" r="4"/><circle cx="390" cy="72" r="4"/><circle cx="646" cy="35" r="4"/><circle cx="646" cy="99" r="4"/>
+          </svg>
+          <div class="failure-gates" aria-hidden="true"><span>AND</span><span>AND</span></div>
           <div>
             <div class="alert-kicker" id="alert-kicker">Integrity monitor</div>
             <div class="alert-title" id="alert-title">AWAITING EVIDENCE</div>
@@ -874,7 +1212,7 @@ _DASHBOARD = r'''<!doctype html>
         </div>
       </section>
 
-      <section class="stats" aria-label="System status">
+      <section class="stats" id="system-status" aria-label="System status">
         <div class="stat"><div class="stat-label">Missions</div><div class="stat-value" id="mission-count">—</div></div>
         <div class="stat"><div class="stat-label">Runs</div><div class="stat-value" id="run-count">—</div></div>
         <div class="stat"><div class="stat-label">gVisor</div><div class="stat-value" id="gvisor-status">—</div></div>
