@@ -906,7 +906,7 @@ _DASHBOARD = r'''<!doctype html>
       });
       const events = session.events || [];
       $('#studio-event-count').textContent = `${events.length} event${events.length === 1 ? '' : 's'}`;
-      $('#studio-events').innerHTML = events.map(item => `<li><time>${esc(String(item.timestamp || '').slice(11,19) || '—')}</time><span>${esc(item.type)}${item.output_hash ? ` · ${esc(shortHash(item.output_hash,16))}` : ''}</span></li>`).join('') || '<li><time>—</time><span>Awaiting mission start</span></li>';
+      $('#studio-events').innerHTML = events.map(item => `<li><time>${esc(String(item.timestamp || '').slice(11,19) || '—')}</time><span>${esc(item.type)}${item.output_hash ? ` · ${esc(shortHash(item.output_hash,16))}` : ''}${item.contract_reason ? ` · ${esc(item.contract_reason)}` : ''}</span></li>`).join('') || '<li><time>—</time><span>Awaiting mission start</span></li>';
       $('#studio-events').scrollTop = $('#studio-events').scrollHeight;
       $('#studio-mission-result').textContent = session.mission_status || '—';
       $('#studio-proof-result').textContent = session.proof_status || '—';
@@ -942,7 +942,9 @@ _DASHBOARD = r'''<!doctype html>
             await refresh();
             await loadEvidence(body.session.apr_run_id, false);
           }
-          toast(`Mission Studio: ${body.session.error || body.session.proof_status || body.session.state}`, body.session.state === 'failed');
+          const diagnostic = body.session.failure_diagnostics;
+          const diagnosticSuffix = diagnostic ? ` [${diagnostic.stage || 'stage'}/${diagnostic.contract_reason || diagnostic.category}${diagnostic.attempt_count ? `, attempt ${diagnostic.attempt_count}` : ''}]` : '';
+          toast(`Mission Studio: ${body.session.error || body.session.proof_status || body.session.state}${diagnosticSuffix}`, body.session.state === 'failed');
           return;
         }
         studioPollTimer = window.setTimeout(pollStudio, 180);
