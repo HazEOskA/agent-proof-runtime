@@ -13,7 +13,10 @@ verifier recomputes integrity.
 User intent
   -> Mission Planner Agent
   -> Research Agent
-  -> Website Builder Agent
+  -> Content Architect Agent
+  -> HTML Builder Agent
+  -> CSS Designer Agent
+  -> Data Builder Agent
   -> QA Agent
   -> artifact handoff
   -> APR deterministic trust gate
@@ -54,8 +57,11 @@ The upstream order is fixed:
 
 1. `planner`
 2. `research`
-3. `builder`
-4. `qa`
+3. `content`
+4. `html_builder`
+5. `css_builder`
+6. `data_builder`
+7. `qa`
 
 Agent definitions, ordering, arbitrary mission types, arbitrary tools, arbitrary
 paths, and arbitrary file creation are not configurable in v1.
