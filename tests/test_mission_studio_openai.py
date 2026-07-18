@@ -808,37 +808,75 @@ class MissionStudioOpenAITests(unittest.TestCase):
 
     def test_bad_builder_artifact_contracts_are_rejected_before_qa_or_apr(self) -> None:
         valid = website_artifacts()
-        cases: dict[str, list[dict[str, str]]] = {
-            "wrong_path": [{**valid[0], "path": "site/other.html"}, *valid[1:]],
-            "extra": [*valid, {**valid[2], "path": "site/extra.json"}],
-            "missing": valid[:2],
-            "wrong_media": [{**valid[0], "media_type": "text/plain"}, *valid[1:]],
-            "oversized": [
-                valid[0],
-                {**valid[1], "content": "x" * (ARTIFACT_LIMITS["site/styles.css"] + 1)},
-                valid[2],
-            ],
-            "executable_html": [
-                {
-                    **valid[0],
-                    "content": valid[0]["content"].replace(
-                        "<main>", '<main onmouseover="alert(1)">'
-                    ),
-                },
-                *valid[1:],
-            ],
-            "external_css": [
-                valid[0],
-                {
-                    **valid[1],
-                    "content": valid[1]["content"]
-                    + "@import url(https://example.invalid/site.css);",
-                },
-                valid[2],
-            ],
+        cases: dict[str, tuple[list[dict[str, str]], str]] = {
+            "wrong_path": (
+                [{**valid[0], "path": "site/other.html"}, *valid[1:]],
+                "artifact_path",
+            ),
+            "extra": (
+                [*valid, {**valid[2], "path": "site/extra.json"}],
+                "artifact_count",
+            ),
+            "missing": (valid[:2], "artifact_count"),
+            "wrong_media": (
+                [{**valid[0], "media_type": "text/plain"}, *valid[1:]],
+                "media_type",
+            ),
+            "oversized": (
+                [
+                    valid[0],
+                    {
+                        **valid[1],
+                        "content": "x"
+                        * (ARTIFACT_LIMITS["site/styles.css"] + 1),
+                    },
+                    valid[2],
+                ],
+                "artifact_size",
+            ),
+            "executable_html": (
+                [
+                    {
+                        **valid[0],
+                        "content": valid[0]["content"].replace(
+                            "<main>", '<main onmouseover="alert(1)">'
+                        ),
+                    },
+                    *valid[1:],
+                ],
+                "executable_html",
+            ),
+            "external_css": (
+                [
+                    valid[0],
+                    {
+                        **valid[1],
+                        "content": valid[1]["content"]
+                        + "@import url(https://example.invalid/site.css);",
+                    },
+                    valid[2],
+                ],
+                "external_reference",
+            ),
+            "required_marker": (
+                [
+                    {
+                        **valid[0],
+                        "content": valid[0]["content"].replace(
+                            'data-apr-section="cta"', 'data-section="cta"'
+                        ),
+                    },
+                    *valid[1:],
+                ],
+                "required_marker",
+            ),
+            "invalid_data_json": (
+                [valid[0], valid[1], {**valid[2], "content": "not-json"}],
+                "data_json_invalid",
+            ),
         }
         base = stage_outputs()
-        for name, artifacts in cases.items():
+        for name, (artifacts, contract_reason) in cases.items():
             with self.subTest(name=name):
                 outputs = [base[0], base[1], {"summary": "bad", "artifacts": artifacts}]
                 client, responses = fake_client(outputs)
@@ -850,6 +888,11 @@ class MissionStudioOpenAITests(unittest.TestCase):
                 with self.assertRaises(MissionStudioOpenAIError) as raised:
                     provider.run_stage("builder")
                 self.assertEqual(raised.exception.category, "stage_contract_rejected")
+                self.assertEqual(raised.exception.contract_reason, contract_reason)
+                self.assertEqual(
+                    raised.exception.safe_diagnostics()["contract_reason"],
+                    contract_reason,
+                )
                 self.assertEqual(len(responses.calls), 3)
 
 

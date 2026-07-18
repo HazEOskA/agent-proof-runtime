@@ -54,6 +54,22 @@ ARTIFACT_LIMITS = {
 MODEL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$")
 RESPONSE_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$")
 SAFE_ERROR_VALUE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$")
+CONTRACT_REASON_CODES = {
+    "artifact_count",
+    "artifact_shape",
+    "artifact_path",
+    "media_type",
+    "empty_content",
+    "artifact_size",
+    "sensitive_content",
+    "external_reference",
+    "executable_html",
+    "css_policy",
+    "required_marker",
+    "data_json_invalid",
+    "stage_shape",
+    "qa_not_approved",
+}
 SENSITIVE_RUNTIME_TEXT = re.compile(
     r"(?i)(?:\b[A-Z]:\\|/(?:home|Users|tmp|var|etc|opt|root)/|"
     r"\bOPENAI_API_KEY\b|\bAPR_OPENAI_MODEL\s*=|environment variables|"
@@ -81,6 +97,7 @@ class MissionStudioOpenAIError(ProviderError):
         resolved_model: str | None = None,
         incomplete_reason: str | None = None,
         token_usage: dict[str, int] | None = None,
+        contract_reason: str | None = None,
     ) -> None:
         self.category = category
         self.stage = stage if stage in STAGE_IDS else None
@@ -101,6 +118,9 @@ class MissionStudioOpenAIError(ProviderError):
         self.resolved_model = _safe_identifier(resolved_model)
         self.incomplete_reason = _safe_error_value(incomplete_reason)
         self.token_usage = _safe_token_usage(token_usage)
+        self.contract_reason = (
+            contract_reason if contract_reason in CONTRACT_REASON_CODES else None
+        )
         super().__init__(category)
 
     def safe_diagnostics(self) -> dict[str, Any]:
@@ -116,6 +136,7 @@ class MissionStudioOpenAIError(ProviderError):
             "resolved_model": self.resolved_model,
             "incomplete_reason": self.incomplete_reason,
             "token_usage": self.token_usage,
+            "contract_reason": self.contract_reason,
         }
         diagnostics.update(
             {key: value for key, value in safe_fields.items() if value is not None}
@@ -281,7 +302,9 @@ def _validate_string_array(value: Any) -> None:
 def _validate_shape(stage_id: str, value: dict[str, Any]) -> None:
     expected = set(STAGE_SCHEMAS[stage_id]["properties"])
     if set(value) != expected:
-        raise MissionStudioOpenAIError("stage_contract_rejected")
+        raise MissionStudioOpenAIError(
+            "stage_contract_rejected", contract_reason="stage_shape"
+        )
     for key, schema in STAGE_SCHEMAS[stage_id]["properties"].items():
         item = value[key]
         if schema.get("type") == "string":
@@ -289,7 +312,9 @@ def _validate_shape(stage_id: str, value: dict[str, Any]) -> None:
         elif schema.get("type") == "array" and key != "artifacts":
             _validate_string_array(item)
         elif schema.get("type") == "boolean" and not isinstance(item, bool):
-            raise MissionStudioOpenAIError("stage_contract_rejected")
+            raise MissionStudioOpenAIError(
+                "stage_contract_rejected", contract_reason="stage_shape"
+            )
 
 
 def _contains_external_reference(value: str) -> bool:
@@ -317,7 +342,9 @@ def _contains_sensitive_runtime_text(value: str) -> bool:
 def _validate_safe_output_text(value: Any) -> None:
     if isinstance(value, str):
         if _contains_sensitive_runtime_text(value):
-            raise MissionStudioOpenAIError("stage_contract_rejected")
+            raise MissionStudioOpenAIError(
+                "stage_contract_rejected", contract_reason="sensitive_content"
+            )
     elif isinstance(value, list):
         for item in value:
             _validate_safe_output_text(item)
@@ -434,7 +461,9 @@ def _classify_request_error(
 
 def _validate_artifacts(value: Any) -> tuple[ProposedArtifact, ...]:
     if not isinstance(value, list) or len(value) != 3:
-        raise MissionStudioOpenAIError("stage_contract_rejected")
+        raise MissionStudioOpenAIError(
+            "stage_contract_rejected", contract_reason="artifact_count"
+        )
     artifacts: list[ProposedArtifact] = []
     seen: set[str] = set()
     for item in value:
@@ -443,41 +472,57 @@ def _validate_artifacts(value: Any) -> tuple[ProposedArtifact, ...]:
             "media_type",
             "content",
         }:
-            raise MissionStudioOpenAIError("stage_contract_rejected")
+            raise MissionStudioOpenAIError(
+                "stage_contract_rejected", contract_reason="artifact_shape"
+            )
         path = item["path"]
         media_type = item["media_type"]
         content = item["content"]
-        if (
-            not isinstance(path, str)
-            or path not in ARTIFACT_MEDIA_TYPES
-            or path in seen
-            or media_type != ARTIFACT_MEDIA_TYPES[path]
-            or not isinstance(content, str)
-            or not content
-        ):
-            raise MissionStudioOpenAIError("stage_contract_rejected")
+        if not isinstance(path, str) or path not in ARTIFACT_MEDIA_TYPES or path in seen:
+            raise MissionStudioOpenAIError(
+                "stage_contract_rejected", contract_reason="artifact_path"
+            )
+        if media_type != ARTIFACT_MEDIA_TYPES[path]:
+            raise MissionStudioOpenAIError(
+                "stage_contract_rejected", contract_reason="media_type"
+            )
+        if not isinstance(content, str) or not content:
+            raise MissionStudioOpenAIError(
+                "stage_contract_rejected", contract_reason="empty_content"
+            )
         if len(content.encode("utf-8")) > ARTIFACT_LIMITS[path]:
-            raise MissionStudioOpenAIError("stage_contract_rejected")
+            raise MissionStudioOpenAIError(
+                "stage_contract_rejected", contract_reason="artifact_size"
+            )
         if _contains_sensitive_runtime_text(content):
-            raise MissionStudioOpenAIError("stage_contract_rejected")
+            raise MissionStudioOpenAIError(
+                "stage_contract_rejected", contract_reason="sensitive_content"
+            )
         seen.add(path)
         artifacts.append(ProposedArtifact(path, media_type, content))
     if seen != set(ARTIFACT_MEDIA_TYPES):
-        raise MissionStudioOpenAIError("stage_contract_rejected")
+        raise MissionStudioOpenAIError(
+            "stage_contract_rejected", contract_reason="artifact_count"
+        )
 
     by_path = {artifact.path: artifact.content for artifact in artifacts}
     html = by_path["site/index.html"]
     css = by_path["site/styles.css"]
-    if (
-        EXECUTABLE_HTML.search(html)
-        or _contains_external_reference(html)
-        or _contains_external_reference(css)
-        or any(
-            marker in css.casefold()
-            for marker in ("expression(", "behavior:", "-moz-binding")
+    if EXECUTABLE_HTML.search(html):
+        raise MissionStudioOpenAIError(
+            "stage_contract_rejected", contract_reason="executable_html"
         )
+    if _contains_external_reference(html) or _contains_external_reference(css):
+        raise MissionStudioOpenAIError(
+            "stage_contract_rejected", contract_reason="external_reference"
+        )
+    if any(
+        marker in css.casefold()
+        for marker in ("expression(", "behavior:", "-moz-binding")
     ):
-        raise MissionStudioOpenAIError("stage_contract_rejected")
+        raise MissionStudioOpenAIError(
+            "stage_contract_rejected", contract_reason="css_policy"
+        )
     for marker in (
         'data-apr-build="verified-website-build-v1"',
         'data-apr-section="hero"',
@@ -485,15 +530,23 @@ def _validate_artifacts(value: Any) -> tuple[ProposedArtifact, ...]:
         'data-apr-section="cta"',
     ):
         if marker not in html:
-            raise MissionStudioOpenAIError("stage_contract_rejected")
+            raise MissionStudioOpenAIError(
+                "stage_contract_rejected", contract_reason="required_marker"
+            )
     try:
         data_value = json.loads(by_path["site/data.json"], object_pairs_hook=_reject_duplicates)
-    except MissionStudioOpenAIError:
-        raise
+    except MissionStudioOpenAIError as error:
+        raise MissionStudioOpenAIError(
+            "stage_contract_rejected", contract_reason="data_json_invalid"
+        ) from error
     except (json.JSONDecodeError, RecursionError, TypeError) as error:
-        raise MissionStudioOpenAIError("stage_contract_rejected") from error
+        raise MissionStudioOpenAIError(
+            "stage_contract_rejected", contract_reason="data_json_invalid"
+        ) from error
     if not isinstance(data_value, dict):
-        raise MissionStudioOpenAIError("stage_contract_rejected")
+        raise MissionStudioOpenAIError(
+            "stage_contract_rejected", contract_reason="data_json_invalid"
+        )
     by_path_artifact = {artifact.path: artifact for artifact in artifacts}
     return tuple(by_path_artifact[path] for path in ARTIFACT_MEDIA_TYPES)
 
@@ -688,7 +741,9 @@ class MissionStudioOpenAIProvider:
                     "artifacts": [artifact.to_dict() for artifact in artifacts],
                 }
             if stage_id == "qa" and output["approved"] is not True:
-                raise MissionStudioOpenAIError("stage_contract_rejected")
+                raise MissionStudioOpenAIError(
+                    "stage_contract_rejected", contract_reason="qa_not_approved"
+                )
         except MissionStudioOpenAIError as error:
             raise MissionStudioOpenAIError(
                 error.category,
@@ -704,6 +759,7 @@ class MissionStudioOpenAIProvider:
                 or _safe_identifier(getattr(response, "model", None), self.model),
                 incomplete_reason=error.incomplete_reason,
                 token_usage=error.token_usage or _usage(response),
+                contract_reason=error.contract_reason,
             ) from error
 
         usage = _usage(response)
