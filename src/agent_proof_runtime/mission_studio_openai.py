@@ -23,6 +23,12 @@ MAX_STAGE_ATTEMPTS = 3
 RETRY_BACKOFF_SECONDS = (0.25, 0.5)
 TRANSIENT_HTTP_STATUSES = {408, 409, 429, 500, 502, 503, 504}
 STAGE_IDS = ("planner", "research", "builder", "qa")
+STAGE_MAX_OUTPUT_TOKENS = {
+    "planner": 4096,
+    "research": 4096,
+    "builder": 32768,
+    "qa": 32768,
+}
 STAGE_NAMES = {
     "planner": "Mission Planner Agent",
     "research": "Research Agent",
@@ -65,6 +71,10 @@ class MissionStudioOpenAIError(ProviderError):
         openai_error_code: str | None = None,
         exception_class: str | None = None,
         attempt_count: int | None = None,
+        response_id: str | None = None,
+        resolved_model: str | None = None,
+        incomplete_reason: str | None = None,
+        token_usage: dict[str, int] | None = None,
     ) -> None:
         self.category = category
         self.stage = stage if stage in STAGE_IDS else None
@@ -81,18 +91,30 @@ class MissionStudioOpenAIError(ProviderError):
             if isinstance(attempt_count, int) and 1 <= attempt_count <= MAX_STAGE_ATTEMPTS
             else None
         )
+        self.response_id = _safe_identifier(response_id)
+        self.resolved_model = _safe_identifier(resolved_model)
+        self.incomplete_reason = _safe_error_value(incomplete_reason)
+        self.token_usage = _safe_token_usage(token_usage)
         super().__init__(category)
 
     def safe_diagnostics(self) -> dict[str, Any]:
-        return {
-            "category": self.category,
+        diagnostics: dict[str, Any] = {"category": self.category}
+        safe_fields = {
             "stage": self.stage,
             "http_status": self.http_status,
             "request_id": self.request_id,
             "openai_error_code": self.openai_error_code,
             "exception_class": self.exception_class,
             "attempt_count": self.attempt_count,
+            "response_id": self.response_id,
+            "resolved_model": self.resolved_model,
+            "incomplete_reason": self.incomplete_reason,
+            "token_usage": self.token_usage,
         }
+        diagnostics.update(
+            {key: value for key, value in safe_fields.items() if value is not None}
+        )
+        return diagnostics
 
 
 def configured_openai_model() -> str:
@@ -200,13 +222,17 @@ STAGE_INSTRUCTIONS = {
         "Create exactly the three declared static website artifacts. The website must "
         "be semantic, accessible, responsive, polished, self-contained, and contain no "
         "JavaScript, remote assets, external fonts, analytics, trackers, tools, or network "
-        "dependencies. Return only the strict structured result."
+        "dependencies. Target about 14 KB of concise production HTML, 10 KB of CSS, and "
+        "6 KB of data JSON. Avoid duplicated copy, giant SVG or base64 payloads, comments, "
+        "explanations, and filler. Return only one complete strict JSON result."
     ),
     "qa": (
         "Review and correct the supplied three website artifacts. Return the complete "
         "final three-artifact proposal, not a diff. Approve only when it is semantic, "
         "accessible, responsive, self-contained, static, and free of JavaScript and "
-        "external dependencies. Return only the strict structured result."
+        "external dependencies. Keep the corrected production artifacts near 14 KB HTML, "
+        "10 KB CSS, and 6 KB data JSON. Avoid duplicated copy, giant SVG or base64 payloads, "
+        "comments, explanations, and filler. Return only one complete strict JSON result."
     ),
 }
 
@@ -304,6 +330,16 @@ def _safe_error_value(value: Any) -> str | None:
     if isinstance(value, str) and SAFE_ERROR_VALUE.fullmatch(value):
         return value
     return None
+
+
+def _safe_token_usage(value: Any) -> dict[str, int] | None:
+    if not isinstance(value, dict):
+        return None
+    safe: dict[str, int] = {}
+    for field in ("input_tokens", "output_tokens", "total_tokens"):
+        item = value.get(field)
+        safe[field] = item if isinstance(item, int) and item >= 0 else 0
+    return safe
 
 
 def _retry_pause(seconds: float) -> None:
@@ -465,6 +501,55 @@ def _usage(response: Any) -> dict[str, int]:
     return result
 
 
+def _response_field(value: Any, field: str) -> Any:
+    if isinstance(value, dict):
+        return value.get(field)
+    return getattr(value, field, None)
+
+
+def _ensure_response_completed(
+    response: Any, stage_id: str, attempt_count: int, requested_model: str
+) -> None:
+    status = getattr(response, "status", None)
+    if status is None or status == "completed":
+        return
+
+    response_id = _safe_identifier(getattr(response, "id", None))
+    resolved_model = _safe_identifier(getattr(response, "model", None), requested_model)
+    token_usage = _usage(response)
+    if status == "incomplete":
+        reason = _safe_error_value(
+            _response_field(getattr(response, "incomplete_details", None), "reason")
+        ) or "unknown"
+        category = {
+            "max_output_tokens": "structured_output_truncated",
+            "max_tokens": "structured_output_truncated",
+            "content_filter": "structured_output_refused",
+        }.get(reason, "structured_output_incomplete")
+        raise MissionStudioOpenAIError(
+            category,
+            stage=stage_id,
+            attempt_count=attempt_count,
+            response_id=response_id,
+            resolved_model=resolved_model,
+            incomplete_reason=reason,
+            token_usage=token_usage,
+        )
+
+    error_code = _safe_error_value(
+        _response_field(getattr(response, "error", None), "code")
+    )
+    raise MissionStudioOpenAIError(
+        "openai_request_failed",
+        stage=stage_id,
+        openai_error_code=error_code,
+        attempt_count=attempt_count,
+        response_id=response_id,
+        resolved_model=resolved_model,
+        token_usage=token_usage,
+    )
+
+
 def _sha256_text(value: str) -> str:
     return "sha256:" + hashlib.sha256(value.encode("utf-8")).hexdigest()
 
@@ -564,7 +649,7 @@ class MissionStudioOpenAIProvider:
                         }
                     },
                     tools=[],
-                    max_output_tokens=4096,
+                    max_output_tokens=STAGE_MAX_OUTPUT_TOKENS[stage_id],
                     store=False,
                 )
                 break
@@ -585,6 +670,7 @@ class MissionStudioOpenAIProvider:
             )
         latency_ms = max(0, int((time.monotonic() - started) * 1000))
         try:
+            _ensure_response_completed(response, stage_id, attempt_count, self.model)
             output = _parse_json(getattr(response, "output_text", None))
             _validate_shape(stage_id, output)
             _validate_safe_output_text(output)
@@ -605,6 +691,12 @@ class MissionStudioOpenAIProvider:
                 openai_error_code=error.openai_error_code,
                 exception_class=error.exception_class,
                 attempt_count=attempt_count,
+                response_id=error.response_id
+                or _safe_identifier(getattr(response, "id", None)),
+                resolved_model=error.resolved_model
+                or _safe_identifier(getattr(response, "model", None), self.model),
+                incomplete_reason=error.incomplete_reason,
+                token_usage=error.token_usage or _usage(response),
             ) from error
 
         usage = _usage(response)

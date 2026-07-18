@@ -16,6 +16,7 @@ from agent_proof_runtime.mission_studio import MissionStudioManager
 from agent_proof_runtime.mission_studio_openai import (
     ARTIFACT_LIMITS,
     OPENAI_TIMEOUT_SECONDS,
+    STAGE_MAX_OUTPUT_TOKENS,
     MissionStudioOpenAIError,
     MissionStudioOpenAIProvider,
 )
@@ -135,6 +136,8 @@ class FakeResponses:
         output = self.outputs.pop(0)
         if isinstance(output, Exception):
             raise output
+        if isinstance(output, SimpleNamespace):
+            return output
         index = len(self.calls)
         return SimpleNamespace(
             id=f"resp_mock_stage_{index}",
@@ -147,6 +150,9 @@ class FakeResponses:
             ),
             hidden_reasoning="must-never-persist",
             raw_sdk_response="must-never-persist",
+            status="completed",
+            incomplete_details=None,
+            error=None,
         )
 
 
@@ -169,6 +175,37 @@ def sdk_error(
 def fake_client(outputs: list[object] | None = None) -> tuple[object, FakeResponses]:
     responses = FakeResponses(outputs or stage_outputs())
     return SimpleNamespace(responses=responses), responses
+
+
+def sdk_response(
+    *,
+    status: str,
+    reason: str | None = None,
+    output_text: str = "raw output must never persist",
+    error_code: str | None = None,
+    error_message: str = "sk-secret C:\\private raw SDK response",
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        id="resp_safe_builder_incomplete",
+        model="gpt-5.6-resolved",
+        status=status,
+        incomplete_details=(
+            SimpleNamespace(reason=reason) if reason is not None else None
+        ),
+        error=(
+            SimpleNamespace(code=error_code, message=error_message)
+            if error_code is not None
+            else None
+        ),
+        output_text=output_text,
+        usage=SimpleNamespace(
+            input_tokens=321,
+            output_tokens=4096,
+            total_tokens=4417,
+        ),
+        hidden_reasoning="must-never-persist",
+        raw_sdk_response="must-never-persist",
+    )
 
 
 def wait_for_session(manager: MissionStudioManager, created: dict) -> dict:
@@ -246,6 +283,19 @@ class MissionStudioOpenAITests(unittest.TestCase):
                 self.assertEqual(call["text"]["format"]["type"], "json_schema")
                 self.assertIs(call["text"]["format"]["strict"], True)
                 self.assertNotIn("reasoning", call)
+            self.assertEqual(
+                [call["max_output_tokens"] for call in responses.calls],
+                [4096, 4096, 32768, 32768],
+            )
+            self.assertEqual(
+                STAGE_MAX_OUTPUT_TOKENS,
+                {
+                    "planner": 4096,
+                    "research": 4096,
+                    "builder": 32768,
+                    "qa": 32768,
+                },
+            )
             research_input = json.loads(responses.calls[1]["input"])
             builder_input = json.loads(responses.calls[2]["input"])
             qa_input = json.loads(responses.calls[3]["input"])
@@ -343,6 +393,128 @@ class MissionStudioOpenAITests(unittest.TestCase):
             self.assertNotIn("environment variables", persisted.casefold())
             self.assertNotIn(str(root.resolve()), persisted)
             self.assertNotIn("Traceback", persisted)
+
+    def test_completed_builder_response_parses_with_the_large_stage_budget(self) -> None:
+        outputs = stage_outputs()
+        client, responses = fake_client(outputs[:3])
+        provider = MissionStudioOpenAIProvider(
+            SimpleNamespace(**{**VALID, "provider": "openai"}), client=client
+        )
+        provider.run_stage("planner")
+        provider.run_stage("research")
+        result = provider.run_stage("builder")
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(len(result["output"]["artifacts"]), 3)
+        self.assertEqual(responses.calls[2]["max_output_tokens"], 32768)
+
+    def test_legacy_response_without_status_still_parses(self) -> None:
+        output = stage_outputs()[0]
+        response = sdk_response(status="completed", output_text=json.dumps(output))
+        del response.status
+        client, responses = fake_client([response])
+        provider = MissionStudioOpenAIProvider(
+            SimpleNamespace(**{**VALID, "provider": "openai"}), client=client
+        )
+        result = provider.run_stage("planner")
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(len(responses.calls), 1)
+
+    def test_builder_incomplete_responses_have_safe_specific_categories(self) -> None:
+        cases = (
+            ("max_output_tokens", "structured_output_truncated"),
+            ("max_tokens", "structured_output_truncated"),
+            ("content_filter", "structured_output_refused"),
+            ("other_stop", "structured_output_incomplete"),
+        )
+        for reason, category in cases:
+            with self.subTest(reason=reason):
+                outputs = stage_outputs()
+                response = sdk_response(status="incomplete", reason=reason)
+                client, responses = fake_client([outputs[0], outputs[1], response])
+                provider = MissionStudioOpenAIProvider(
+                    SimpleNamespace(**{**VALID, "provider": "openai"}), client=client
+                )
+                provider.run_stage("planner")
+                provider.run_stage("research")
+                with patch(
+                    "agent_proof_runtime.mission_studio_openai._retry_pause"
+                ) as retry_sleep:
+                    with self.assertRaises(MissionStudioOpenAIError) as raised:
+                        provider.run_stage("builder")
+                self.assertEqual(raised.exception.category, category)
+                self.assertEqual(len(responses.calls), 3)
+                retry_sleep.assert_not_called()
+                self.assertEqual(
+                    raised.exception.safe_diagnostics(),
+                    {
+                        "category": category,
+                        "stage": "builder",
+                        "attempt_count": 1,
+                        "response_id": "resp_safe_builder_incomplete",
+                        "resolved_model": "gpt-5.6-resolved",
+                        "incomplete_reason": reason,
+                        "token_usage": {
+                            "input_tokens": 321,
+                            "output_tokens": 4096,
+                            "total_tokens": 4417,
+                        },
+                    },
+                )
+                serialized = json.dumps(raised.exception.safe_diagnostics())
+                self.assertNotIn(response.output_text, serialized)
+                self.assertNotIn("hidden_reasoning", serialized)
+                self.assertNotIn("raw_sdk_response", serialized)
+
+    def test_incomplete_builder_persists_no_raw_response_or_error_text(self) -> None:
+        outputs = stage_outputs()
+        response = sdk_response(
+            status="incomplete",
+            reason="max_output_tokens",
+            output_text="partial secret builder output must never persist",
+            error_code="server_error",
+        )
+        client, responses = fake_client([outputs[0], outputs[1], response])
+        with tempfile.TemporaryDirectory() as temporary:
+            manager = self._manager(Path(temporary), client)
+            with self.assertLogs(
+                "agent_proof_runtime.mission_studio", level="WARNING"
+            ) as captured:
+                session = wait_for_session(
+                    manager,
+                    manager.start({**VALID, "provider": "openai"}),
+                )
+        self.assertEqual(session["failure_category"], "structured_output_truncated")
+        self.assertEqual(len(responses.calls), 3)
+        serialized = json.dumps({"session": session, "logs": captured.output})
+        for unsafe in (
+            response.output_text,
+            response.error.message,
+            response.hidden_reasoning,
+            response.raw_sdk_response,
+            "sk-secret",
+            "C:\\\\private",
+        ):
+            self.assertNotIn(unsafe, serialized)
+
+    def test_failed_response_reads_only_safe_error_code(self) -> None:
+        response = sdk_response(
+            status="failed",
+            error_code="server_error",
+            output_text="raw failed response",
+        )
+        client, responses = fake_client([response])
+        provider = MissionStudioOpenAIProvider(
+            SimpleNamespace(**{**VALID, "provider": "openai"}), client=client
+        )
+        with self.assertRaises(MissionStudioOpenAIError) as raised:
+            provider.run_stage("planner")
+        diagnostics = raised.exception.safe_diagnostics()
+        self.assertEqual(raised.exception.category, "openai_request_failed")
+        self.assertEqual(diagnostics["openai_error_code"], "server_error")
+        self.assertEqual(len(responses.calls), 1)
+        serialized = json.dumps(diagnostics)
+        self.assertNotIn(response.output_text, serialized)
+        self.assertNotIn(response.error.message, serialized)
 
     def test_research_transient_failures_retry_then_succeed(self) -> None:
         transient_errors = (
