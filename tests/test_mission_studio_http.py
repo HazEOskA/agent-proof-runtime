@@ -170,6 +170,17 @@ class MissionStudioHttpTests(unittest.TestCase):
                     self.assertEqual(session["mission_status"], "PASSED")
                     self.assertEqual(session["proof_status"], "LOCAL_VERIFIED")
                     self.assertEqual(session["anchor_status"], "UNANCHORED")
+                    artifact_base = base + "/runs/" + session["apr_run_id"] + "/artifact/site/"
+                    with urlopen(artifact_base + "index.html", timeout=5) as response:
+                        self.assertEqual(response.status, HTTPStatus.OK)
+                        artifact_csp = response.headers["Content-Security-Policy"]
+                        self.assertIn("style-src 'self' 'unsafe-inline'", artifact_csp)
+                        self.assertIn("sandbox allow-same-origin", artifact_csp)
+                    with urlopen(artifact_base + "styles.css", timeout=5) as response:
+                        self.assertEqual(response.status, HTTPStatus.OK)
+                        self.assertEqual(
+                            response.headers.get_content_type(), "text/css"
+                        )
                     event_types = [item["type"] for item in session["events"]]
                     for expected in (
                         "studio.mission_accepted",
