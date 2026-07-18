@@ -322,11 +322,11 @@ class MissionStudioOpenAITests(unittest.TestCase):
                 self.assertNotIn("reasoning", call)
             self.assertEqual(
                 [call["max_output_tokens"] for call in responses.calls],
-                [4096, 4096, 8192, 16384, 12288, 8192, 4096],
+                [4096, 4096, 8192, 16384, 8192, 8192, 4096],
             )
             self.assertEqual(
                 [call["timeout"] for call in responses.calls],
-                [120, 120, 180, 300, 300, 180, 180],
+                [120, 120, 180, 300, 180, 180, 180],
             )
             self.assertEqual(
                 STAGE_MAX_OUTPUT_TOKENS,
@@ -335,7 +335,7 @@ class MissionStudioOpenAITests(unittest.TestCase):
                     "research": 4096,
                     "content": 8192,
                     "html_builder": 16384,
-                    "css_builder": 12288,
+                    "css_builder": 8192,
                     "data_builder": 8192,
                     "qa": 4096,
                 },
@@ -465,7 +465,7 @@ class MissionStudioOpenAITests(unittest.TestCase):
             self.assertEqual(result["status"], "completed")
         self.assertEqual(
             [responses.calls[index]["max_output_tokens"] for index in (3, 4, 5)],
-            [16384, 12288, 8192],
+            [16384, 8192, 8192],
         )
         self.assertEqual(
             [provider._outputs[stage]["artifact"]["path"] for stage in (
@@ -519,7 +519,7 @@ class MissionStudioOpenAITests(unittest.TestCase):
             GENERATION_TARGET_BYTES,
             {
                 "site/index.html": 14_000,
-                "site/styles.css": 15_000,
+                "site/styles.css": 10_000,
                 "site/data.json": 4_000,
             },
         )
@@ -539,7 +539,7 @@ class MissionStudioOpenAITests(unittest.TestCase):
             "qa",
         ):
             provider.run_stage(stage_id)
-        expected_caps = {3: "14,000", 4: "15,000", 5: "4,000"}
+        expected_caps = {3: "14,000", 4: "10,000", 5: "4,000"}
         for stage_index, cap in expected_caps.items():
             self.assertIn(cap, responses.calls[stage_index]["instructions"])
         self.assertIn("never repeat", responses.calls[6]["instructions"])
@@ -1115,6 +1115,8 @@ class MissionStudioDockerContractTests(unittest.TestCase):
         self.assertIn("provider:studioProvider.value", html)
         self.assertIn('id="studio-preview-link"', html)
         self.assertIn("OPEN GENERATED SITE", html)
+        self.assertIn("item.contract_reason", html)
+        self.assertIn("failure_diagnostics", html)
         self.assertIn("/artifact/site/index.html", html)
         self.assertNotIn("api_key:", html)
         for stage_id in (
