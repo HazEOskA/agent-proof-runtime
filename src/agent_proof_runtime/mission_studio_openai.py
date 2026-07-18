@@ -19,6 +19,12 @@ from .providers import ArtifactProposal, ProposedArtifact, ProviderError, Provid
 DEFAULT_OPENAI_MODEL = "gpt-5.6"
 IMPLEMENTATION_STATUS = "IMPLEMENTED BUT NOT LIVE-VALIDATED"
 OPENAI_TIMEOUT_SECONDS = 120
+STAGE_TIMEOUT_SECONDS = {
+    "planner": 120,
+    "research": 120,
+    "builder": 300,
+    "qa": 300,
+}
 MAX_STAGE_ATTEMPTS = 3
 RETRY_BACKOFF_SECONDS = (0.25, 0.5)
 TRANSIENT_HTTP_STATUSES = {408, 409, 429, 500, 502, 503, 504}
@@ -651,6 +657,7 @@ class MissionStudioOpenAIProvider:
                     tools=[],
                     max_output_tokens=STAGE_MAX_OUTPUT_TOKENS[stage_id],
                     store=False,
+                    timeout=STAGE_TIMEOUT_SECONDS[stage_id],
                 )
                 break
             except MissionStudioOpenAIError:

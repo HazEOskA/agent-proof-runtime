@@ -17,6 +17,7 @@ from agent_proof_runtime.mission_studio_openai import (
     ARTIFACT_LIMITS,
     OPENAI_TIMEOUT_SECONDS,
     STAGE_MAX_OUTPUT_TOKENS,
+    STAGE_TIMEOUT_SECONDS,
     MissionStudioOpenAIError,
     MissionStudioOpenAIProvider,
 )
@@ -286,6 +287,10 @@ class MissionStudioOpenAITests(unittest.TestCase):
             self.assertEqual(
                 [call["max_output_tokens"] for call in responses.calls],
                 [4096, 4096, 32768, 32768],
+            )
+            self.assertEqual(
+                [call["timeout"] for call in responses.calls],
+                [120, 120, 300, 300],
             )
             self.assertEqual(
                 STAGE_MAX_OUTPUT_TOKENS,
@@ -657,6 +662,45 @@ class MissionStudioOpenAITests(unittest.TestCase):
         self.assertNotIn("sk-secret", safe_serialized)
         self.assertNotIn("C:\\\\private", safe_serialized)
         self.assertNotIn("raw response body", safe_serialized)
+
+    def test_live_builder_timeout_uses_extended_bounded_attempts(self) -> None:
+        outputs = stage_outputs()
+        client, responses = fake_client(
+            [
+                outputs[0],
+                outputs[1],
+                TimeoutError("raw builder timeout must never persist"),
+                TimeoutError("raw builder timeout must never persist"),
+                TimeoutError("raw builder timeout must never persist"),
+            ]
+        )
+        provider = MissionStudioOpenAIProvider(
+            SimpleNamespace(**{**VALID, "provider": "openai"}), client=client
+        )
+        provider.run_stage("planner")
+        provider.run_stage("research")
+        with patch(
+            "agent_proof_runtime.mission_studio_openai._retry_pause"
+        ) as retry_sleep:
+            with self.assertRaises(MissionStudioOpenAIError) as raised:
+                provider.run_stage("builder")
+        self.assertEqual(raised.exception.category, "openai_timeout")
+        self.assertEqual(raised.exception.stage, "builder")
+        self.assertEqual(raised.exception.attempt_count, 3)
+        self.assertEqual(len(responses.calls), 5)
+        self.assertEqual(
+            [call["timeout"] for call in responses.calls],
+            [120, 120, 300, 300, 300],
+        )
+        self.assertEqual(STAGE_TIMEOUT_SECONDS["builder"], 300)
+        self.assertEqual(STAGE_TIMEOUT_SECONDS["qa"], 300)
+        self.assertEqual(
+            [call.args[0] for call in retry_sleep.call_args_list], [0.25, 0.5]
+        )
+        self.assertNotIn(
+            "raw builder timeout",
+            json.dumps(raised.exception.safe_diagnostics()),
+        )
 
     def test_absent_server_key_fails_closed_without_apr(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
