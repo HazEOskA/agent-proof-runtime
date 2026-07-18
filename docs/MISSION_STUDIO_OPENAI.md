@@ -1,6 +1,6 @@
 # Mission Studio live OpenAI mode
 
-Status: **IMPLEMENTED BUT NOT LIVE-VALIDATED**
+Status: **LIVE-VALIDATED (2026-07-18)**
 
 Mission Studio supports two server-selected execution modes for the fixed
 `verified_website_build` mission:
@@ -28,13 +28,20 @@ The backend runs these calls in order:
 7. QA Agent reviews the assembled artifacts and returns only a concise verdict.
 
 Artifact stages have separate output budgets and up to three bounded attempts for
-incomplete or contract-invalid output. QA never repeats the generated files. This
-removes the previous monolithic Builder/QA payload that could exhaust one response.
+incomplete, transient, or contract-invalid output. If those attempts are exhausted,
+the trusted runtime materializes a bounded deterministic artifact from the already
+validated Content Architect model. QA uses the same recovery rule and deterministically
+validates the three assembled artifacts without repeating them. Completion mode and
+safe recovery category are recorded in the trace. This removes the previous monolithic
+Builder/QA payload that could exhaust one response without allowing model volatility to
+kill an otherwise valid mission.
 
 This is not live web research. The pipeline uses no web search, tools, shell,
 filesystem tools, code execution, or external citations. Every call uses
-`store=False` and a strict JSON Schema Structured Output. A failed live stage stops
-the pipeline; there is no fallback to fixture mode and APR is not invoked.
+`store=False` and a strict JSON Schema Structured Output. There is no fallback to
+fixture mode. Safety refusals, authentication failures, permission failures, and bad
+requests still fail closed; deterministic recovery applies only after bounded
+recoverable build or QA failures.
 
 ## APR trust boundary
 
