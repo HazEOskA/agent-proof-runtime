@@ -1138,6 +1138,14 @@ class MissionStudioDockerContractTests(unittest.TestCase):
         self.assertIn("background: rgba(4,13,16,.2)", html)
         self.assertIn('class="bus-tap"', html)
         self.assertIn('class="flow-via-core"', html)
+        self.assertIn('class="runtime-gate"', html)
+        self.assertIn('class="runtime-openai-card"', html)
+        self.assertIn('class="runtime-chip primary codex-core"', html)
+        self.assertIn('class="failure-gates"', html)
+        self.assertIn('id="system-status"', html)
+        self.assertIn('content: "MISSION BUS"', html)
+        self.assertIn("#missions .card::after", html)
+        self.assertIn("repeating-linear-gradient(90deg", html)
         self.assertNotIn("api_key:", html)
         for stage_id in (
             "planner",
