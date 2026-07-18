@@ -7,7 +7,6 @@ runtime, evidence recorder, Proof Bundle generator, and verification boundary.
 from __future__ import annotations
 
 import hashlib
-import html
 import json
 import os
 import re
@@ -75,15 +74,9 @@ ARTIFACT_LIMITS = {
     "site/data.json": 16_384,
 }
 GENERATION_TARGET_BYTES = {
-    "site/index.html": 12_000,
-    "site/styles.css": 8_000,
+    "site/index.html": 14_000,
+    "site/styles.css": 15_000,
     "site/data.json": 4_000,
-}
-DETERMINISTIC_RECOVERY_CATEGORIES = {
-    "structured_output_invalid",
-    "structured_output_truncated",
-    "structured_output_incomplete",
-    "stage_contract_rejected",
 }
 MODEL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$")
 RESPONSE_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$")
@@ -100,6 +93,8 @@ CONTRACT_REASON_CODES = {
     "executable_html",
     "css_policy",
     "required_marker",
+    "html_quality_floor",
+    "css_quality_floor",
     "data_json_invalid",
     "stage_shape",
     "qa_not_approved",
@@ -293,9 +288,14 @@ STAGE_INSTRUCTIONS = {
         "research, reveal reasoning, or propose commands, paths, or executable code."
     ),
     "research": (
-        "Perform model-based audience and design analysis only; this is not live web "
-        "research. Return only the strict structured result with no citations, tools, "
-        "hidden reasoning, commands, or executable instructions."
+        "Act as a senior art director and product strategist. Perform model-based audience "
+        "and design analysis only; this is not live web research. Define a specific creative "
+        "concept, asymmetric or otherwise distinctive layout direction, typography character, "
+        "palette logic, bespoke hero composition, and visual motifs rooted in the brief. Avoid "
+        "the offline fixture signature: near-black background, green accent, one oversized text "
+        "hero, three equal cards, and a plain bordered CTA. Do not default to generic dark-cyan "
+        "SaaS styling. Return only the strict structured result with no citations, tools, hidden "
+        "reasoning, commands, or executable instructions."
     ),
     "content": (
         "Create the concise content architecture for the website. Return exactly three "
@@ -304,18 +304,27 @@ STAGE_INSTRUCTIONS = {
         "hidden reasoning, or implementation commentary. Return only the strict structured result."
     ),
     "html_builder": (
-        "Create only site/index.html. Produce concise semantic accessible HTML that uses the "
-        "supplied content and contains data-apr-build=\"verified-website-build-v1\" plus "
+        "Create only site/index.html. Treat the Research Agent's art direction as binding and "
+        "build a visually distinctive, production-grade composition rather than a generic "
+        "landing-page skeleton. Include navigation, footer, at least four semantic sections, "
+        "a bespoke product/brand visual made from semantic HTML, and meaningful supporting "
+        "detail. The live result must materially exceed and differ from the offline fixture's "
+        "single oversized hero, three equal cards, and plain CTA. Use the supplied content and "
+        "contain data-apr-build=\"verified-website-build-v1\" plus "
         "data-apr-section=\"hero\", data-apr-section=\"features\", and "
         "data-apr-section=\"cta\". Link only styles.css. Do not include JavaScript, inline "
         "event handlers, remote assets, external fonts, trackers, base64 payloads, comments, "
-        "or filler. Keep content below 12,000 UTF-8 bytes. Return one complete artifact only."
+        "or filler. Keep content between 4,500 and 14,000 UTF-8 bytes. Return one complete "
+        "artifact only."
     ),
     "css_builder": (
-        "Create only site/styles.css for the supplied HTML. Produce polished responsive CSS "
-        "with strong hierarchy, visible focus states, and mobile layout. Do not use imports, "
-        "remote URLs, external fonts, scripts, data payloads, comments, or filler. Keep content "
-        "below 8,000 UTF-8 bytes. Return one complete artifact only."
+        "Create only site/styles.css for the supplied HTML. Execute the Research Agent's art "
+        "direction with a distinctive token system, bespoke hero visual, intentional layout, "
+        "strong type hierarchy, responsive transformations, and visible focus states. Do not "
+        "default to the fixture's black/green palette, three equal bordered cards, or generic "
+        "dark-cyan SaaS dashboard. The result must be visually specific to the brief and use at "
+        "least 6,000 but fewer than 15,000 UTF-8 bytes. Do not use imports, remote URLs, external "
+        "fonts, scripts, data payloads, comments, or filler. Return one complete artifact only."
     ),
     "data_builder": (
         "Create only site/data.json as valid compact JSON derived from the supplied content. "
@@ -325,9 +334,11 @@ STAGE_INSTRUCTIONS = {
     ),
     "qa": (
         "Review the three already validated website artifacts as a final independent gate. "
-        "Approve when they are semantic, accessible, responsive, coherent, self-contained, "
-        "static, and free of JavaScript and external dependencies. Return only a concise "
-        "verdict; never repeat, rewrite, or embed any artifact content."
+        "Approve only when they are semantic, accessible, responsive, coherent, self-contained, "
+        "static, free of JavaScript and external dependencies, materially faithful to the brief, "
+        "and visibly more developed than the offline fixture baseline. Reject a mere recolor or "
+        "generic hero-plus-three-equal-cards template. Return only a concise verdict; never "
+        "repeat, rewrite, or embed any artifact content."
     ),
 }
 
@@ -627,168 +638,35 @@ def _validate_artifacts(value: Any) -> tuple[ProposedArtifact, ...]:
     return tuple(_validate_artifact(by_path[path], path) for path in ARTIFACT_MEDIA_TYPES)
 
 
-def _safe_display_text(value: Any, fallback: str, limit: int) -> str:
-    """Return bounded text that cannot become an executable external reference."""
-    text = value if isinstance(value, str) else fallback
-    text = " ".join(text.split()).strip() or fallback
-    text = re.sub(r"(?i)https?://", "", text)
-    text = re.sub(r"(?i)javascript\s*:", "javascript ", text)
-    text = re.sub(r"(?i)data\s*:\s*text/javascript", "data text", text)
-    text = re.sub(r"(?i)@import", "import", text)
-    text = re.sub(r"(?i)\bon[a-z]+\s*=", "event ", text)
-    text = text.replace("//", "/ /")
-    return text[:limit]
-
-
-def _safe_html_text(value: Any, fallback: str, limit: int) -> str:
-    return html.escape(_safe_display_text(value, fallback, limit), quote=True)
-
-
-def _render_recovered_html(content_output: dict[str, Any]) -> dict[str, Any]:
-    """Materialize a safe HTML artifact from the validated content-agent model."""
-
-    brand = _safe_html_text(content_output.get("brand_name"), "Verified Build", 80)
-    eyebrow = _safe_html_text(content_output.get("eyebrow"), "VERIFIED DELIVERY", 100)
-    headline = _safe_html_text(
-        content_output.get("headline"), "Build with verifiable evidence", 180
-    )
-    description = _safe_html_text(
-        content_output.get("description"),
-        "A static, accessible website artifact produced through a recorded agent workflow.",
-        420,
-    )
-    primary_cta = _safe_html_text(
-        content_output.get("primary_cta"), "Start a verified review", 90
-    )
-    secondary_cta = _safe_html_text(
-        content_output.get("secondary_cta"), "Explore the controls", 90
-    )
-    raw_titles = content_output.get("feature_titles", [])
-    raw_descriptions = content_output.get("feature_descriptions", [])
-    titles = list(raw_titles) if isinstance(raw_titles, list) else []
-    descriptions = list(raw_descriptions) if isinstance(raw_descriptions, list) else []
-    feature_cards = []
-    for index in range(3):
-        title = _safe_html_text(
-            titles[index] if index < len(titles) else None,
-            ("Constrained", "Recorded", "Verified")[index],
-            110,
-        )
-        detail = _safe_html_text(
-            descriptions[index] if index < len(descriptions) else None,
-            "A bounded control keeps the delivered artifact clear and reviewable.",
-            320,
-        )
-        feature_cards.append(
-            f'<article class="feature-card"><span aria-hidden="true">0{index + 1}</span>'
-            f"<h3>{title}</h3><p>{detail}</p></article>"
-        )
-    feature_html = "".join(feature_cards)
-    artifact_content = f'''<!doctype html>
-<html lang="en" data-apr-build="verified-website-build-v1">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="{description}">
-  <title>{brand}</title>
-  <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-  <header class="site-header"><a class="brand" href="#top">{brand}</a><nav aria-label="Primary"><a href="#features">{secondary_cta}</a><a href="#cta">{primary_cta}</a></nav></header>
-  <main id="top">
-    <section class="hero" data-apr-section="hero"><p class="eyebrow">{eyebrow}</p><h1>{headline}</h1><p class="lede">{description}</p><div class="hero-actions"><a class="button" href="#cta">{primary_cta}</a><a class="text-link" href="#features">{secondary_cta}</a></div></section>
-    <section class="features" id="features" data-apr-section="features" aria-labelledby="features-title"><div class="section-heading"><p class="eyebrow">THREE CONTROL LAYERS</p><h2 id="features-title">Designed for work that must hold up.</h2></div><div class="feature-grid">{feature_html}</div></section>
-    <section class="cta" id="cta" data-apr-section="cta" aria-labelledby="cta-title"><p class="eyebrow">INDEPENDENTLY VERIFIABLE</p><h2 id="cta-title">{headline}</h2><p>{description}</p><a class="button" href="#top">{primary_cta}</a></section>
-  </main>
-  <footer><p>{brand} · Static verified website build</p></footer>
-</body>
-</html>
-'''
-    artifact = {
-        "path": "site/index.html",
-        "media_type": "text/html",
-        "content": artifact_content,
-    }
-    validated = _validate_artifact(artifact, "site/index.html")
-    return {
-        "summary": "Recovered the semantic HTML artifact with the bounded APR renderer.",
-        "artifact": validated.to_dict(),
-    }
-
-
-def _render_recovered_css() -> dict[str, Any]:
-    artifact_content = """:root{color-scheme:dark;--bg:#071013;--surface:#0d1b20;--line:#28434b;--text:#edf7f8;--muted:#9bb0b5;--accent:#36f0e4;--accent2:#77a9ff}*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(circle at 80% 0,#123039 0,transparent 34%),var(--bg);color:var(--text);font:16px/1.6 Arial,sans-serif}a{color:inherit}.site-header,main,footer{width:min(1120px,calc(100% - 32px));margin:auto}.site-header{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:24px 0}.site-header nav,.hero-actions{display:flex;flex-wrap:wrap;gap:18px}.brand,.eyebrow{font-weight:800;letter-spacing:.12em}.site-header a{text-decoration:none}.hero,.features,.cta{padding:88px 0}.hero{min-height:68vh;display:grid;align-content:center;max-width:880px}h1,h2,h3,p{margin-top:0}h1{max-width:900px;font-size:clamp(3rem,8vw,6.7rem);line-height:.92;letter-spacing:-.055em}h2{font-size:clamp(2rem,5vw,4rem);line-height:1}.lede,.cta>p{max-width:680px;color:var(--muted);font-size:clamp(1.05rem,2vw,1.3rem)}.button{display:inline-flex;justify-content:center;padding:13px 18px;border:1px solid var(--accent);border-radius:6px;background:var(--accent);color:#031112;font-weight:800;text-decoration:none}.text-link{padding:13px 0;color:var(--muted)}.section-heading{max-width:720px}.feature-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.feature-card{min-height:240px;padding:26px;border:1px solid var(--line);border-radius:10px;background:linear-gradient(145deg,var(--surface),#091519)}.feature-card span{color:var(--accent);font-weight:800}.feature-card h3{margin-top:42px;font-size:1.35rem}.feature-card p{color:var(--muted)}.cta{margin:40px auto 72px;padding:56px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}footer{padding:28px 0 48px;border-top:1px solid var(--line);color:var(--muted)}:focus-visible{outline:3px solid var(--accent2);outline-offset:4px}@media(max-width:760px){.site-header{align-items:flex-start}.site-header nav{justify-content:flex-end}.hero,.features{padding:60px 0}.feature-grid{grid-template-columns:1fr}.feature-card{min-height:auto}.cta{padding:32px 22px}h1{font-size:clamp(2.8rem,16vw,5rem)}}
-"""
-    artifact = {
-        "path": "site/styles.css",
-        "media_type": "text/css",
-        "content": artifact_content,
-    }
-    validated = _validate_artifact(artifact, "site/styles.css")
-    return {
-        "summary": "Recovered the responsive CSS artifact with the bounded APR renderer.",
-        "artifact": validated.to_dict(),
-    }
-
-
-def _render_recovered_data(content_output: dict[str, Any]) -> dict[str, Any]:
-    titles = content_output.get("feature_titles", [])
-    descriptions = content_output.get("feature_descriptions", [])
-    trust_points = content_output.get("trust_points", [])
-    data = {
-        "schema_version": "apr.verified-website-build.data.v1",
-        "brand_name": _safe_display_text(
-            content_output.get("brand_name"), "Verified Build", 80
-        ),
-        "hero": {
-            "eyebrow": _safe_display_text(
-                content_output.get("eyebrow"), "VERIFIED DELIVERY", 100
-            ),
-            "headline": _safe_display_text(
-                content_output.get("headline"), "Build with verifiable evidence", 180
-            ),
-            "description": _safe_display_text(
-                content_output.get("description"), "Recorded agent delivery.", 420
-            ),
-        },
-        "features": [
-            {
-                "title": _safe_display_text(
-                    titles[index] if isinstance(titles, list) and index < len(titles) else None,
-                    ("Constrained", "Recorded", "Verified")[index],
-                    110,
-                ),
-                "description": _safe_display_text(
-                    descriptions[index]
-                    if isinstance(descriptions, list) and index < len(descriptions)
-                    else None,
-                    "A bounded control keeps the artifact reviewable.",
-                    320,
-                ),
-            }
-            for index in range(3)
-        ],
-        "trust_points": [
-            _safe_display_text(item, "Verified", 100)
-            for item in (trust_points[:3] if isinstance(trust_points, list) else [])
-        ],
-    }
-    artifact = {
-        "path": "site/data.json",
-        "media_type": "application/json",
-        "content": json.dumps(
-            data, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-        )
-        + "\n",
-    }
-    validated = _validate_artifact(artifact, "site/data.json")
-    return {
-        "summary": "Recovered the structured data artifact with the bounded APR renderer.",
-        "artifact": validated.to_dict(),
-    }
+def _validate_live_quality(artifact: ProposedArtifact) -> None:
+    content = artifact.content
+    byte_count = len(content.encode("utf-8"))
+    if artifact.path == "site/index.html":
+        if (
+            byte_count < 4_500
+            or content.casefold().count("<section") < 4
+            or "<nav" not in content.casefold()
+            or "<footer" not in content.casefold()
+        ):
+            raise MissionStudioOpenAIError(
+                "stage_contract_rejected", contract_reason="html_quality_floor"
+            )
+    elif artifact.path == "site/styles.css":
+        lowered = content.casefold()
+        if (
+            byte_count < 6_000
+            or "@media" not in lowered
+            or ":focus-visible" not in lowered
+            or ":root" not in lowered
+        ):
+            raise MissionStudioOpenAIError(
+                "stage_contract_rejected", contract_reason="css_quality_floor"
+            )
 
 
 def _render_recovered_qa(outputs: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    """Use deterministic validation only; never replace model-authored artifacts."""
+
     _validate_artifacts(
         [
             outputs["html_builder"]["artifact"],
@@ -797,26 +675,11 @@ def _render_recovered_qa(outputs: dict[str, dict[str, Any]]) -> dict[str, Any]:
         ]
     )
     return {
-        "summary": "Recovered QA with deterministic validation of all three artifacts.",
+        "summary": "Recovered QA with deterministic validation of the model-authored artifacts.",
         "approved": True,
         "issues": [],
         "corrections_made": [],
     }
-
-
-def _render_recovered_stage(
-    stage_id: str, outputs: dict[str, dict[str, Any]]
-) -> dict[str, Any]:
-    if stage_id == "html_builder":
-        return _render_recovered_html(outputs["content"])
-    if stage_id == "css_builder":
-        return _render_recovered_css()
-    if stage_id == "data_builder":
-        return _render_recovered_data(outputs["content"])
-    if stage_id == "qa":
-        return _render_recovered_qa(outputs)
-    raise MissionStudioOpenAIError("stage_contract_rejected")
-
 
 def _usage(response: Any) -> dict[str, int]:
     usage = getattr(response, "usage", None)
@@ -924,6 +787,22 @@ class MissionStudioOpenAIProvider:
             "brief": self.request.brief,
             "stage": stage_id,
         }
+        if stage_id in {"research", "html_builder", "css_builder", "qa"}:
+            value["live_quality_contract"] = {
+                "must_materially_exceed_fixture": True,
+                "fixture_visual_signature": [
+                    "near-black background with green accent",
+                    "single oversized text hero",
+                    "three equal bordered feature cards",
+                    "plain bordered call-to-action panel",
+                ],
+                "required_differentiators": [
+                    "brief-specific creative concept",
+                    "bespoke hero visual composition",
+                    "intentional non-fixture section layout",
+                    "responsive production-grade detail",
+                ],
+            }
         dependencies = {
             "planner": (),
             "research": ("planner",),
@@ -955,6 +834,8 @@ class MissionStudioOpenAIProvider:
             artifact = _validate_artifact(
                 output["artifact"], ARTIFACT_STAGE_PATHS[stage_id]
             )
+            if self._live_request:
+                _validate_live_quality(artifact)
             output = {**output, "artifact": artifact.to_dict()}
             if stage_id == "data_builder":
                 assembled = [
@@ -1048,8 +929,12 @@ class MissionStudioOpenAIProvider:
                     "structured_output_incomplete",
                     "stage_contract_rejected",
                 }
-                if retryable and attempt_count >= MAX_STAGE_ATTEMPTS:
-                    output = _render_recovered_stage(stage_id, self._outputs)
+                if (
+                    stage_id == "qa"
+                    and retryable
+                    and attempt_count >= MAX_STAGE_ATTEMPTS
+                ):
+                    output = _render_recovered_qa(self._outputs)
                     recovery_category = enriched.category
                     recovery_contract_reason = enriched.contract_reason
                     break
@@ -1059,7 +944,14 @@ class MissionStudioOpenAIProvider:
                     **stage_input,
                     "retry": {
                         "attempt": attempt_count + 1,
-                        "instruction": "Return one complete result that exactly satisfies the fixed schema and artifact contract.",
+                        "failure_category": enriched.category,
+                        "contract_reason": enriched.contract_reason or "not_applicable",
+                        "instruction": (
+                            "Regenerate the complete model-authored result from scratch. Fix the "
+                            "reported contract reason while preserving the brief-specific art "
+                            "direction and premium quality. Never substitute fixture copy or a "
+                            "generic template."
+                        ),
                     },
                 }
                 _retry_pause(RETRY_BACKOFF_SECONDS[attempt_count - 1])
@@ -1068,11 +960,11 @@ class MissionStudioOpenAIProvider:
                     error, stage_id, attempt_count
                 )
                 if (
-                    stage_id in {*ARTIFACT_STAGE_PATHS, "qa"}
+                    stage_id == "qa"
                     and transient
                     and attempt_count >= MAX_STAGE_ATTEMPTS
                 ):
-                    output = _render_recovered_stage(stage_id, self._outputs)
+                    output = _render_recovered_qa(self._outputs)
                     recovery_category = classified.category
                     break
                 if not transient or attempt_count >= MAX_STAGE_ATTEMPTS:
