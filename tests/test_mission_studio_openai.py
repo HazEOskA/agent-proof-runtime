@@ -1118,6 +1118,17 @@ class MissionStudioDockerContractTests(unittest.TestCase):
         self.assertIn("item.contract_reason", html)
         self.assertIn("failure_diagnostics", html)
         self.assertIn("/artifact/site/index.html", html)
+        self.assertIn('class="runtime-version-note"', html)
+        self.assertNotIn('class="runtime-name"', html)
+        self.assertNotIn("official mark ·", html)
+        self.assertNotIn("official app mark ·", html)
+        self.assertIn(
+            ".runtime-chip.primary { border: 0; box-shadow: none; }", html
+        )
+        self.assertIn(
+            "grid-template-columns: repeat(7,minmax(0,1fr))", html
+        )
+        self.assertIn("background: rgba(6,15,19,.26)", html)
         self.assertNotIn("api_key:", html)
         for stage_id in (
             "planner",
