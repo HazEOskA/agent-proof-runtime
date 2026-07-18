@@ -119,11 +119,27 @@ class MissionStudioProviderTests(unittest.TestCase):
         )
         self.assertEqual(
             [stage["stage_id"] for stage in first.stages],
-            ["planner", "research", "builder", "qa"],
+            [
+                "planner",
+                "research",
+                "content",
+                "html_builder",
+                "css_builder",
+                "data_builder",
+                "qa",
+            ],
         )
         self.assertEqual(
             [handoff["destination_stage"] for handoff in first.handoffs],
-            ["research", "builder", "qa", "apr"],
+            [
+                "research",
+                "content",
+                "html_builder",
+                "css_builder",
+                "data_builder",
+                "qa",
+                "apr",
+            ],
         )
         for stage in first.stages:
             self.assertEqual(stage["output_hash"], hash_json(stage["output"]))
