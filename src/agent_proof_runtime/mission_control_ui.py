@@ -546,6 +546,7 @@ _DASHBOARD = r'''<!doctype html>
     .agent-pipeline { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; }
     .studio-agent { position: relative; min-height: 152px; padding: 14px; border: 1px solid #2b3e46; border-radius: 7px; background: #0a1318; overflow: visible; transition: border-color .2s ease, background .2s ease; }
     .studio-agent:not(:last-child)::after { content: ""; position: absolute; z-index: 1; top: 38px; left: calc(100% + 1px); width: 9px; height: 1px; background: #416069; }
+    .studio-agent:nth-child(4)::after { display: none; }
     .studio-agent .agent-index { color: #577078; font: 800 9px var(--mono); }
     .studio-agent h3 { min-height: 35px; margin: 17px 0 8px; font-size: 14px; line-height: 1.2; }
     .studio-agent .agent-status { color: #83979d; font: 800 9px/1.4 var(--mono); letter-spacing: .08em; }
@@ -603,7 +604,7 @@ _DASHBOARD = r'''<!doctype html>
       .studio-intro, .studio-zones, .studio-bottom { grid-template-columns: 1fr; }
       .studio-badges { justify-content: flex-start; }
       .agent-pipeline { grid-template-columns: repeat(2,minmax(0,1fr)); }
-      .studio-agent:nth-child(2)::after { display: none; }
+      .studio-agent:nth-child(2n)::after { display: none; }
     }
 
     @media (max-width: 640px) {
@@ -748,8 +749,11 @@ _DASHBOARD = r'''<!doctype html>
             <div class="agent-pipeline" id="studio-agents">
               <article class="studio-agent" data-studio-agent="planner" data-status="ready"><span class="agent-index">01</span><h3>MISSION PLANNER</h3><span class="agent-status">READY</span><code class="agent-hash">No output hash</code><span class="handoff-packet"></span></article>
               <article class="studio-agent" data-studio-agent="research" data-status="ready"><span class="agent-index">02</span><h3>RESEARCH AGENT</h3><span class="agent-status">READY</span><code class="agent-hash">No output hash</code><span class="handoff-packet"></span></article>
-              <article class="studio-agent" data-studio-agent="builder" data-status="ready"><span class="agent-index">03</span><h3>WEBSITE BUILDER</h3><span class="agent-status">READY</span><code class="agent-hash">No output hash</code><span class="handoff-packet"></span></article>
-              <article class="studio-agent" data-studio-agent="qa" data-status="ready"><span class="agent-index">04</span><h3>QA AGENT</h3><span class="agent-status">READY</span><code class="agent-hash">No output hash</code><span class="handoff-packet"></span></article>
+              <article class="studio-agent" data-studio-agent="content" data-status="ready"><span class="agent-index">03</span><h3>CONTENT ARCHITECT</h3><span class="agent-status">READY</span><code class="agent-hash">No output hash</code><span class="handoff-packet"></span></article>
+              <article class="studio-agent" data-studio-agent="html_builder" data-status="ready"><span class="agent-index">04</span><h3>HTML BUILDER</h3><span class="agent-status">READY</span><code class="agent-hash">No output hash</code><span class="handoff-packet"></span></article>
+              <article class="studio-agent" data-studio-agent="css_builder" data-status="ready"><span class="agent-index">05</span><h3>CSS DESIGNER</h3><span class="agent-status">READY</span><code class="agent-hash">No output hash</code><span class="handoff-packet"></span></article>
+              <article class="studio-agent" data-studio-agent="data_builder" data-status="ready"><span class="agent-index">06</span><h3>DATA BUILDER</h3><span class="agent-status">READY</span><code class="agent-hash">No output hash</code><span class="handoff-packet"></span></article>
+              <article class="studio-agent" data-studio-agent="qa" data-status="ready"><span class="agent-index">07</span><h3>QA AGENT</h3><span class="agent-status">READY</span><code class="agent-hash">No output hash</code><span class="handoff-packet"></span></article>
             </div>
           </div>
           <div class="trust-zone">
