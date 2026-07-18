@@ -83,6 +83,9 @@ SENSITIVE_RUNTIME_TEXT = re.compile(
 EXECUTABLE_HTML = re.compile(
     r"(?is)(?:<\s*(?:script|iframe|object|embed)\b|\son[a-z]+\s*=)"
 )
+UNSAFE_CSS = re.compile(
+    r"(?is)(?:expression\s*\(|(?:^|[;{])\s*(?:behavior|-moz-binding)\s*:)"
+)
 
 
 class MissionStudioOpenAIError(ProviderError):
@@ -524,10 +527,7 @@ def _validate_artifacts(value: Any) -> tuple[ProposedArtifact, ...]:
         raise MissionStudioOpenAIError(
             "stage_contract_rejected", contract_reason="external_reference"
         )
-    if any(
-        marker in css.casefold()
-        for marker in ("expression(", "behavior:", "-moz-binding")
-    ):
+    if UNSAFE_CSS.search(css):
         raise MissionStudioOpenAIError(
             "stage_contract_rejected", contract_reason="css_policy"
         )

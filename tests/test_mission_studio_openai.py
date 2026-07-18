@@ -413,6 +413,47 @@ class MissionStudioOpenAITests(unittest.TestCase):
         self.assertEqual(len(result["output"]["artifacts"]), 3)
         self.assertEqual(responses.calls[2]["max_output_tokens"], 32768)
 
+    def test_scroll_behavior_is_safe_but_legacy_behavior_property_is_rejected(self) -> None:
+        outputs = stage_outputs()
+        safe_artifacts = website_artifacts()
+        safe_artifacts[1] = {
+            **safe_artifacts[1],
+            "content": safe_artifacts[1]["content"]
+            + "\nhtml { scroll-behavior: smooth; }\n",
+        }
+        client, _ = fake_client(
+            [outputs[0], outputs[1], {"summary": "safe css", "artifacts": safe_artifacts}]
+        )
+        provider = MissionStudioOpenAIProvider(
+            SimpleNamespace(**{**VALID, "provider": "openai"}), client=client
+        )
+        provider.run_stage("planner")
+        provider.run_stage("research")
+        self.assertEqual(provider.run_stage("builder")["status"], "completed")
+
+        unsafe_artifacts = website_artifacts()
+        unsafe_artifacts[1] = {
+            **unsafe_artifacts[1],
+            "content": unsafe_artifacts[1]["content"]
+            + "\nmain { behavior: none; }\n",
+        }
+        client, _ = fake_client(
+            [
+                outputs[0],
+                outputs[1],
+                {"summary": "unsafe css", "artifacts": unsafe_artifacts},
+            ]
+        )
+        provider = MissionStudioOpenAIProvider(
+            SimpleNamespace(**{**VALID, "provider": "openai"}), client=client
+        )
+        provider.run_stage("planner")
+        provider.run_stage("research")
+        with self.assertRaises(MissionStudioOpenAIError) as raised:
+            provider.run_stage("builder")
+        self.assertEqual(raised.exception.category, "stage_contract_rejected")
+        self.assertEqual(raised.exception.contract_reason, "css_policy")
+
     def test_builder_and_qa_generation_caps_stay_below_hard_artifact_limits(self) -> None:
         self.assertEqual(
             GENERATION_TARGET_BYTES,
