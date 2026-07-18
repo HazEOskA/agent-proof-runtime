@@ -24,7 +24,7 @@ STAGE_TIMEOUT_SECONDS = {
     "research": 120,
     "content": 180,
     "html_builder": 300,
-    "css_builder": 300,
+    "css_builder": 180,
     "data_builder": 180,
     "qa": 180,
 }
@@ -45,7 +45,7 @@ STAGE_MAX_OUTPUT_TOKENS = {
     "research": 4096,
     "content": 8192,
     "html_builder": 16384,
-    "css_builder": 12288,
+    "css_builder": 8192,
     "data_builder": 8192,
     "qa": 4096,
 }
@@ -75,7 +75,7 @@ ARTIFACT_LIMITS = {
 }
 GENERATION_TARGET_BYTES = {
     "site/index.html": 14_000,
-    "site/styles.css": 15_000,
+    "site/styles.css": 10_000,
     "site/data.json": 4_000,
 }
 MODEL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$")
@@ -323,7 +323,8 @@ STAGE_INSTRUCTIONS = {
         "strong type hierarchy, responsive transformations, and visible focus states. Do not "
         "default to the fixture's black/green palette, three equal bordered cards, or generic "
         "dark-cyan SaaS dashboard. The result must be visually specific to the brief and use at "
-        "least 6,000 but fewer than 15,000 UTF-8 bytes. Do not use imports, remote URLs, external "
+        "least 4,000 but fewer than 10,000 UTF-8 bytes. Favor purposeful selectors and responsive "
+        "composition over repetition or byte-count filler. Do not use imports, remote URLs, external "
         "fonts, scripts, data payloads, comments, or filler. Return one complete artifact only."
     ),
     "data_builder": (
@@ -654,7 +655,7 @@ def _validate_live_quality(artifact: ProposedArtifact) -> None:
     elif artifact.path == "site/styles.css":
         lowered = content.casefold()
         if (
-            byte_count < 6_000
+            byte_count < 4_000
             or "@media" not in lowered
             or ":focus-visible" not in lowered
             or ":root" not in lowered
