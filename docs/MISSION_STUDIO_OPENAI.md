@@ -27,21 +27,25 @@ The backend runs these calls in order:
 6. Data Builder produces only `site/data.json`.
 7. QA Agent reviews the assembled artifacts and returns only a concise verdict.
 
-Artifact stages have separate output budgets and up to three bounded attempts for
-incomplete, transient, or contract-invalid output. If those attempts are exhausted,
-the trusted runtime materializes a bounded deterministic artifact from the already
-validated Content Architect model. QA uses the same recovery rule and deterministically
-validates the three assembled artifacts without repeating them. Completion mode and
-safe recovery category are recorded in the trace. This removes the previous monolithic
-Builder/QA payload that could exhaust one response without allowing model volatility to
-kill an otherwise valid mission.
+Artifact stages have separate output budgets and up to three bounded model-authored
+attempts for incomplete, transient, contract-invalid, or quality-floor output. A retry
+receives the safe failure category and contract reason so it can regenerate the artifact
+without copying the fixture. If all artifact attempts fail, the mission fails closed;
+the runtime never replaces paid live output with a deterministic HTML, CSS, or data
+template. QA may recover only by deterministically validating the exact model-authored
+artifacts already produced. It never rewrites or substitutes them.
+
+The live quality contract explicitly rejects the offline fixture's visual signature and
+requires a brief-specific art direction, bespoke hero composition, navigation, footer,
+at least four semantic sections, responsive detail, and minimum HTML/CSS development
+floors. After verification, Mission Control exposes **OPEN GENERATED SITE** for the exact
+run artifact rather than showing only the proof status.
 
 This is not live web research. The pipeline uses no web search, tools, shell,
 filesystem tools, code execution, or external citations. Every call uses
 `store=False` and a strict JSON Schema Structured Output. There is no fallback to
 fixture mode. Safety refusals, authentication failures, permission failures, and bad
-requests still fail closed; deterministic recovery applies only after bounded
-recoverable build or QA failures.
+requests still fail closed. Artifact generation has no deterministic template fallback.
 
 ## APR trust boundary
 
