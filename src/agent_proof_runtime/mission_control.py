@@ -458,8 +458,9 @@ def _handler_factory(control: MissionControl) -> type[BaseHTTPRequestHandler]:
                 )
             else:
                 content_policy = (
-                    "default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; "
-                    "img-src data:; base-uri 'none'; frame-ancestors 'none'; sandbox"
+                    "default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'none'; "
+                    "img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'; "
+                    "sandbox allow-same-origin"
                 )
             self.send_header("Content-Security-Policy", content_policy)
             self.end_headers()
