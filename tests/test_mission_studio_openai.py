@@ -578,13 +578,38 @@ class MissionStudioOpenAITests(unittest.TestCase):
                 with patch(
                     "agent_proof_runtime.mission_studio_openai._retry_pause"
                 ) as retry_sleep:
-                    with self.assertRaises(MissionStudioOpenAIError) as raised:
-                        provider.run_stage("html_builder")
-                self.assertEqual(raised.exception.category, category)
+                    if category == "structured_output_refused":
+                        with self.assertRaises(MissionStudioOpenAIError) as raised:
+                            provider.run_stage("html_builder")
+                        self.assertEqual(raised.exception.category, category)
+                        diagnostics = raised.exception.safe_diagnostics()
+                    else:
+                        result = provider.run_stage("html_builder")
+                        self.assertEqual(result["status"], "completed")
+                        self.assertEqual(
+                            result["event_output"]["completion_mode"],
+                            "deterministic_contract_recovery",
+                        )
+                        self.assertEqual(
+                            provider._records[-1]["recovery_category"], category
+                        )
+                        diagnostics = {
+                            "category": category,
+                            "stage": "html_builder",
+                            "attempt_count": response_count,
+                            "response_id": "resp_safe_builder_incomplete",
+                            "resolved_model": "gpt-5.6-resolved",
+                            "incomplete_reason": reason,
+                            "token_usage": {
+                                "input_tokens": 321,
+                                "output_tokens": 4096,
+                                "total_tokens": 4417,
+                            },
+                        }
                 self.assertEqual(len(responses.calls), 3 + response_count)
                 self.assertEqual(retry_sleep.call_count, response_count - 1)
                 self.assertEqual(
-                    raised.exception.safe_diagnostics(),
+                    diagnostics,
                     {
                         "category": category,
                         "stage": "html_builder",
@@ -599,7 +624,9 @@ class MissionStudioOpenAITests(unittest.TestCase):
                         },
                     },
                 )
-                serialized = json.dumps(raised.exception.safe_diagnostics())
+                serialized = json.dumps(
+                    {"diagnostics": diagnostics, "records": provider._records}
+                )
                 self.assertNotIn(response.output_text, serialized)
                 self.assertNotIn("hidden_reasoning", serialized)
                 self.assertNotIn("raw_sdk_response", serialized)
@@ -612,19 +639,29 @@ class MissionStudioOpenAITests(unittest.TestCase):
             output_text="partial secret builder output must never persist",
             error_code="server_error",
         )
-        client, responses = fake_client([*outputs[:3], response, response, response])
+        client, responses = fake_client(
+            [*outputs[:3], response, response, response, *outputs[4:]]
+        )
         with tempfile.TemporaryDirectory() as temporary:
             manager = self._manager(Path(temporary), client)
-            with self.assertLogs(
-                "agent_proof_runtime.mission_studio", level="WARNING"
-            ) as captured:
-                session = wait_for_session(
-                    manager,
-                    manager.start({**VALID, "provider": "openai"}),
-                )
-        self.assertEqual(session["failure_category"], "structured_output_truncated")
-        self.assertEqual(len(responses.calls), 6)
-        serialized = json.dumps({"session": session, "logs": captured.output})
+            session = wait_for_session(
+                manager,
+                manager.start({**VALID, "provider": "openai"}),
+            )
+        self.assertEqual(session["state"], "completed")
+        self.assertIsNone(session["failure_category"])
+        self.assertEqual(session["proof_status"], "LOCAL_VERIFIED")
+        self.assertEqual(len(responses.calls), 9)
+        html_event = next(
+            event
+            for event in session["events"]
+            if event["type"] == "agent.html_builder.completed"
+        )
+        self.assertEqual(
+            html_event["structured_output"]["completion_mode"],
+            "deterministic_contract_recovery",
+        )
+        serialized = json.dumps({"session": session})
         for unsafe in (
             response.output_text,
             response.error.message,
@@ -811,11 +848,14 @@ class MissionStudioOpenAITests(unittest.TestCase):
         with patch(
             "agent_proof_runtime.mission_studio_openai._retry_pause"
         ) as retry_sleep:
-            with self.assertRaises(MissionStudioOpenAIError) as raised:
-                provider.run_stage("html_builder")
-        self.assertEqual(raised.exception.category, "openai_timeout")
-        self.assertEqual(raised.exception.stage, "html_builder")
-        self.assertEqual(raised.exception.attempt_count, 3)
+            result = provider.run_stage("html_builder")
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(
+            result["event_output"]["completion_mode"],
+            "deterministic_contract_recovery",
+        )
+        self.assertEqual(provider._records[-1]["recovery_category"], "openai_timeout")
+        self.assertEqual(provider._records[-1]["attempt_count"], 3)
         self.assertEqual(len(responses.calls), 6)
         self.assertEqual(
             [call["timeout"] for call in responses.calls],
@@ -827,9 +867,41 @@ class MissionStudioOpenAITests(unittest.TestCase):
         self.assertEqual(
             [call.args[0] for call in retry_sleep.call_args_list], [0.25, 0.5]
         )
-        self.assertNotIn(
-            "raw builder timeout",
-            json.dumps(raised.exception.safe_diagnostics()),
+        self.assertNotIn("raw builder timeout", json.dumps(provider._records))
+
+    def test_html_recovery_sanitizes_hostile_display_text(self) -> None:
+        outputs = stage_outputs()
+        outputs[2] = {
+            **outputs[2],
+            "brand_name": "HTTPS://EXAMPLE.INVALID //CDN.example @import onload=bad",
+            "headline": "javascript:alert data:text/javascript payload",
+            "description": "url(//cdn.example.invalid/a) remains display text only",
+        }
+        invalid_html = "not-json"
+        client, _ = fake_client(
+            [*outputs[:3], invalid_html, invalid_html, invalid_html]
+        )
+        provider = MissionStudioOpenAIProvider(
+            SimpleNamespace(**{**VALID, "provider": "openai"}), client=client
+        )
+        for stage_id in ("planner", "research", "content"):
+            provider.run_stage(stage_id)
+        with patch("agent_proof_runtime.mission_studio_openai._retry_pause"):
+            result = provider.run_stage("html_builder")
+        recovered = result["output"]["artifact"]["content"]
+        for marker in (
+            "http://",
+            "https://",
+            "//cdn.",
+            "@import",
+            "javascript:",
+            "data:text/javascript",
+            "url(//",
+            "onload=",
+        ):
+            self.assertNotIn(marker, recovered.casefold())
+        self.assertLessEqual(
+            len(recovered.encode("utf-8")), ARTIFACT_LIMITS["site/index.html"]
         )
 
     def test_absent_server_key_fails_closed_without_apr(self) -> None:
@@ -936,7 +1008,7 @@ class MissionStudioOpenAITests(unittest.TestCase):
         self.assertEqual(raised.exception.attempt_count, 3)
         self.assertEqual(len(responses.calls), 3)
 
-    def test_bad_split_artifact_contracts_retry_then_fail_before_qa_or_apr(self) -> None:
+    def test_bad_split_artifact_contracts_recover_html_and_reject_other_artifacts(self) -> None:
         base = stage_outputs()
         html = base[3]["artifact"]
         css = base[4]["artifact"]
@@ -1028,6 +1100,23 @@ class MissionStudioOpenAITests(unittest.TestCase):
                 for stage_id in stage_order[:target_index]:
                     provider.run_stage(stage_id)
                 with patch("agent_proof_runtime.mission_studio_openai._retry_pause"):
+                    if target_stage == "html_builder":
+                        result = provider.run_stage(target_stage)
+                        self.assertEqual(result["status"], "completed")
+                        recovered = result["output"]["artifact"]["content"]
+                        self.assertIn(
+                            'data-apr-build="verified-website-build-v1"', recovered
+                        )
+                        self.assertIn('data-apr-section="hero"', recovered)
+                        self.assertIn('data-apr-section="features"', recovered)
+                        self.assertIn('data-apr-section="cta"', recovered)
+                        self.assertNotIn("onmouseover", recovered)
+                        self.assertEqual(
+                            provider._records[-1]["recovery_category"],
+                            "stage_contract_rejected",
+                        )
+                        self.assertEqual(len(responses.calls), target_index + 3)
+                        continue
                     with self.assertRaises(MissionStudioOpenAIError) as raised:
                         provider.run_stage(target_stage)
                 self.assertEqual(raised.exception.category, "stage_contract_rejected")
