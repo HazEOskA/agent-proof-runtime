@@ -79,7 +79,7 @@ GENERATION_TARGET_BYTES = {
     "site/styles.css": 8_000,
     "site/data.json": 4_000,
 }
-HTML_RECOVERY_CATEGORIES = {
+DETERMINISTIC_RECOVERY_CATEGORIES = {
     "structured_output_invalid",
     "structured_output_truncated",
     "structured_output_incomplete",
@@ -627,9 +627,8 @@ def _validate_artifacts(value: Any) -> tuple[ProposedArtifact, ...]:
     return tuple(_validate_artifact(by_path[path], path) for path in ARTIFACT_MEDIA_TYPES)
 
 
-def _safe_html_text(value: Any, fallback: str, limit: int) -> str:
-    """Return bounded display text that cannot become an external reference."""
-
+def _safe_display_text(value: Any, fallback: str, limit: int) -> str:
+    """Return bounded text that cannot become an executable external reference."""
     text = value if isinstance(value, str) else fallback
     text = " ".join(text.split()).strip() or fallback
     text = re.sub(r"(?i)https?://", "", text)
@@ -638,7 +637,11 @@ def _safe_html_text(value: Any, fallback: str, limit: int) -> str:
     text = re.sub(r"(?i)@import", "import", text)
     text = re.sub(r"(?i)\bon[a-z]+\s*=", "event ", text)
     text = text.replace("//", "/ /")
-    return html.escape(text[:limit], quote=True)
+    return text[:limit]
+
+
+def _safe_html_text(value: Any, fallback: str, limit: int) -> str:
+    return html.escape(_safe_display_text(value, fallback, limit), quote=True)
 
 
 def _render_recovered_html(content_output: dict[str, Any]) -> dict[str, Any]:
@@ -711,6 +714,108 @@ def _render_recovered_html(content_output: dict[str, Any]) -> dict[str, Any]:
         "summary": "Recovered the semantic HTML artifact with the bounded APR renderer.",
         "artifact": validated.to_dict(),
     }
+
+
+def _render_recovered_css() -> dict[str, Any]:
+    artifact_content = """:root{color-scheme:dark;--bg:#071013;--surface:#0d1b20;--line:#28434b;--text:#edf7f8;--muted:#9bb0b5;--accent:#36f0e4;--accent2:#77a9ff}*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(circle at 80% 0,#123039 0,transparent 34%),var(--bg);color:var(--text);font:16px/1.6 Arial,sans-serif}a{color:inherit}.site-header,main,footer{width:min(1120px,calc(100% - 32px));margin:auto}.site-header{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:24px 0}.site-header nav,.hero-actions{display:flex;flex-wrap:wrap;gap:18px}.brand,.eyebrow{font-weight:800;letter-spacing:.12em}.site-header a{text-decoration:none}.hero,.features,.cta{padding:88px 0}.hero{min-height:68vh;display:grid;align-content:center;max-width:880px}h1,h2,h3,p{margin-top:0}h1{max-width:900px;font-size:clamp(3rem,8vw,6.7rem);line-height:.92;letter-spacing:-.055em}h2{font-size:clamp(2rem,5vw,4rem);line-height:1}.lede,.cta>p{max-width:680px;color:var(--muted);font-size:clamp(1.05rem,2vw,1.3rem)}.button{display:inline-flex;justify-content:center;padding:13px 18px;border:1px solid var(--accent);border-radius:6px;background:var(--accent);color:#031112;font-weight:800;text-decoration:none}.text-link{padding:13px 0;color:var(--muted)}.section-heading{max-width:720px}.feature-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.feature-card{min-height:240px;padding:26px;border:1px solid var(--line);border-radius:10px;background:linear-gradient(145deg,var(--surface),#091519)}.feature-card span{color:var(--accent);font-weight:800}.feature-card h3{margin-top:42px;font-size:1.35rem}.feature-card p{color:var(--muted)}.cta{margin:40px auto 72px;padding:56px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}footer{padding:28px 0 48px;border-top:1px solid var(--line);color:var(--muted)}:focus-visible{outline:3px solid var(--accent2);outline-offset:4px}@media(max-width:760px){.site-header{align-items:flex-start}.site-header nav{justify-content:flex-end}.hero,.features{padding:60px 0}.feature-grid{grid-template-columns:1fr}.feature-card{min-height:auto}.cta{padding:32px 22px}h1{font-size:clamp(2.8rem,16vw,5rem)}}
+"""
+    artifact = {
+        "path": "site/styles.css",
+        "media_type": "text/css",
+        "content": artifact_content,
+    }
+    validated = _validate_artifact(artifact, "site/styles.css")
+    return {
+        "summary": "Recovered the responsive CSS artifact with the bounded APR renderer.",
+        "artifact": validated.to_dict(),
+    }
+
+
+def _render_recovered_data(content_output: dict[str, Any]) -> dict[str, Any]:
+    titles = content_output.get("feature_titles", [])
+    descriptions = content_output.get("feature_descriptions", [])
+    trust_points = content_output.get("trust_points", [])
+    data = {
+        "schema_version": "apr.verified-website-build.data.v1",
+        "brand_name": _safe_display_text(
+            content_output.get("brand_name"), "Verified Build", 80
+        ),
+        "hero": {
+            "eyebrow": _safe_display_text(
+                content_output.get("eyebrow"), "VERIFIED DELIVERY", 100
+            ),
+            "headline": _safe_display_text(
+                content_output.get("headline"), "Build with verifiable evidence", 180
+            ),
+            "description": _safe_display_text(
+                content_output.get("description"), "Recorded agent delivery.", 420
+            ),
+        },
+        "features": [
+            {
+                "title": _safe_display_text(
+                    titles[index] if isinstance(titles, list) and index < len(titles) else None,
+                    ("Constrained", "Recorded", "Verified")[index],
+                    110,
+                ),
+                "description": _safe_display_text(
+                    descriptions[index]
+                    if isinstance(descriptions, list) and index < len(descriptions)
+                    else None,
+                    "A bounded control keeps the artifact reviewable.",
+                    320,
+                ),
+            }
+            for index in range(3)
+        ],
+        "trust_points": [
+            _safe_display_text(item, "Verified", 100)
+            for item in (trust_points[:3] if isinstance(trust_points, list) else [])
+        ],
+    }
+    artifact = {
+        "path": "site/data.json",
+        "media_type": "application/json",
+        "content": json.dumps(
+            data, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        )
+        + "\n",
+    }
+    validated = _validate_artifact(artifact, "site/data.json")
+    return {
+        "summary": "Recovered the structured data artifact with the bounded APR renderer.",
+        "artifact": validated.to_dict(),
+    }
+
+
+def _render_recovered_qa(outputs: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    _validate_artifacts(
+        [
+            outputs["html_builder"]["artifact"],
+            outputs["css_builder"]["artifact"],
+            outputs["data_builder"]["artifact"],
+        ]
+    )
+    return {
+        "summary": "Recovered QA with deterministic validation of all three artifacts.",
+        "approved": True,
+        "issues": [],
+        "corrections_made": [],
+    }
+
+
+def _render_recovered_stage(
+    stage_id: str, outputs: dict[str, dict[str, Any]]
+) -> dict[str, Any]:
+    if stage_id == "html_builder":
+        return _render_recovered_html(outputs["content"])
+    if stage_id == "css_builder":
+        return _render_recovered_css()
+    if stage_id == "data_builder":
+        return _render_recovered_data(outputs["content"])
+    if stage_id == "qa":
+        return _render_recovered_qa(outputs)
+    raise MissionStudioOpenAIError("stage_contract_rejected")
 
 
 def _usage(response: Any) -> dict[str, int]:
@@ -887,6 +992,7 @@ class MissionStudioOpenAIProvider:
         response: Any | None = None
         output: dict[str, Any] | None = None
         recovery_category: str | None = None
+        recovery_contract_reason: str | None = None
         attempt_count = 0
         while attempt_count < MAX_STAGE_ATTEMPTS:
             attempt_count += 1
@@ -942,13 +1048,10 @@ class MissionStudioOpenAIProvider:
                     "structured_output_incomplete",
                     "stage_contract_rejected",
                 }
-                if (
-                    stage_id == "html_builder"
-                    and retryable
-                    and attempt_count >= MAX_STAGE_ATTEMPTS
-                ):
-                    output = _render_recovered_html(self._outputs["content"])
+                if retryable and attempt_count >= MAX_STAGE_ATTEMPTS:
+                    output = _render_recovered_stage(stage_id, self._outputs)
                     recovery_category = enriched.category
+                    recovery_contract_reason = enriched.contract_reason
                     break
                 if not retryable or attempt_count >= MAX_STAGE_ATTEMPTS:
                     raise enriched from error
@@ -965,11 +1068,11 @@ class MissionStudioOpenAIProvider:
                     error, stage_id, attempt_count
                 )
                 if (
-                    stage_id == "html_builder"
+                    stage_id in {*ARTIFACT_STAGE_PATHS, "qa"}
                     and transient
                     and attempt_count >= MAX_STAGE_ATTEMPTS
                 ):
-                    output = _render_recovered_html(self._outputs["content"])
+                    output = _render_recovered_stage(stage_id, self._outputs)
                     recovery_category = classified.category
                     break
                 if not transient or attempt_count >= MAX_STAGE_ATTEMPTS:
@@ -1013,6 +1116,8 @@ class MissionStudioOpenAIProvider:
         }
         if recovery_category is not None:
             record["recovery_category"] = recovery_category
+        if recovery_contract_reason is not None:
+            record["recovery_contract_reason"] = recovery_contract_reason
         self._records.append(record)
         if stage_id == "qa":
             self._build_proposal()
