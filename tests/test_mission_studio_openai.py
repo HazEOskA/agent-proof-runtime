@@ -1146,6 +1146,14 @@ class MissionStudioDockerContractTests(unittest.TestCase):
         self.assertIn('content: "MISSION BUS"', html)
         self.assertIn("#missions .card::after", html)
         self.assertIn("repeating-linear-gradient(90deg", html)
+        self.assertIn('data-run-state="idle"', html)
+        self.assertIn("7 AGENTS DOCKED", html)
+        self.assertIn("@keyframes agent-deploy", html)
+        self.assertIn("@keyframes agent-chip-scan", html)
+        self.assertIn("@keyframes gate-scan", html)
+        self.assertIn("#mission-studio { order: 3; }", html)
+        self.assertIn("studioNode.dataset.runState", html)
+        self.assertIn("dataset.runState = 'deploying'", html)
         self.assertNotIn("api_key:", html)
         for stage_id in (
             "planner",
