@@ -48,9 +48,8 @@ _DASHBOARD = r'''<!doctype html>
       overflow-x: hidden;
       color: var(--text);
       background:
-        radial-gradient(circle at 50% -12%, rgba(47, 231, 221, .14), transparent 34rem),
-        radial-gradient(circle at 7% 24%, rgba(39, 112, 122, .11), transparent 24rem),
-        linear-gradient(180deg, #071216 0%, var(--board) 44%, var(--board-deep) 100%);
+        linear-gradient(180deg, rgba(7,18,22,.72) 0%, rgba(4,12,15,.82) 48%, rgba(2,7,9,.96) 100%),
+        #030a0c;
     }
 
     body::before {
@@ -58,11 +57,11 @@ _DASHBOARD = r'''<!doctype html>
       position: fixed;
       inset: 0;
       pointer-events: none;
-      opacity: .3;
+      opacity: .42;
       background-image:
-        radial-gradient(circle, rgba(72, 201, 196, .42) 1px, transparent 1.6px),
-        linear-gradient(90deg, transparent 49.7%, rgba(45, 113, 119, .18) 50%, transparent 50.3%),
-        linear-gradient(0deg, transparent 49.7%, rgba(45, 113, 119, .12) 50%, transparent 50.3%);
+        radial-gradient(circle, rgba(83, 170, 169, .4) 1px, transparent 1.45px),
+        linear-gradient(90deg, transparent 49.65%, rgba(46, 104, 109, .22) 50%, transparent 50.35%),
+        linear-gradient(0deg, transparent 49.65%, rgba(46, 104, 109, .16) 50%, transparent 50.35%);
       background-size: 22px 22px, 176px 176px, 176px 176px;
       mask-image: linear-gradient(to bottom, black 0%, rgba(0,0,0,.88) 72%, transparent 100%);
     }
@@ -74,13 +73,15 @@ _DASHBOARD = r'''<!doctype html>
       height: 100%;
       pointer-events: none;
       z-index: 0;
-      opacity: .34;
-      filter: drop-shadow(0 0 7px rgba(54, 240, 228, .16));
+      opacity: .48;
+      filter: none;
     }
-    .board-traces .trace { fill: none; stroke: #1c7d80; stroke-width: 2; vector-effect: non-scaling-stroke; }
-    .board-traces .trace.hot { stroke: #35e7df; stroke-dasharray: 4 18; animation: trace-flow 8s linear infinite; }
+    .board-traces .trace { fill: none; stroke: #24666a; stroke-width: 1.25; vector-effect: non-scaling-stroke; }
+    .board-traces .trace.secondary { stroke: #173f43; stroke-width: .8; }
+    .board-traces .trace.hot { stroke: #35cfc9; stroke-width: 1.5; stroke-dasharray: 4 18; animation: trace-flow 8s linear infinite; }
     .board-traces .trace.fail { stroke: #ff5d68; stroke-dasharray: 2 24; animation: trace-flow 5s linear infinite reverse; }
-    .board-traces .via { fill: #061114; stroke: #35e7df; stroke-width: 2; vector-effect: non-scaling-stroke; }
+    .board-traces .via { fill: #051013; stroke: #329b99; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+    .board-traces .via-core { fill: #2d7778; opacity: .72; }
 
     @keyframes trace-flow { to { stroke-dashoffset: -176; } }
     @keyframes signal-pulse {
@@ -113,8 +114,9 @@ _DASHBOARD = r'''<!doctype html>
       padding: 8px 12px;
       border: 1px solid #27545a;
       border-radius: 12px;
-      background: rgba(11, 29, 34, .9);
-      box-shadow: inset 0 1px rgba(255,255,255,.03), 0 10px 50px rgba(0,0,0,.22);
+      background: rgba(7, 20, 24, .52);
+      box-shadow: none;
+      backdrop-filter: blur(7px);
       font: 700 10px/1.35 var(--mono);
       letter-spacing: .1em;
       text-transform: uppercase;
@@ -145,17 +147,25 @@ _DASHBOARD = r'''<!doctype html>
     }
     .brand-lockup {
       position: relative;
-      width: min(510px, 100%);
-      height: 172px;
+      width: min(410px, 100%);
+      height: 148px;
       min-width: 0;
-      overflow: hidden;
+      overflow: visible;
       isolation: isolate;
-      -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 4%, #000 92%, transparent 100%);
-      mask-image: linear-gradient(90deg, transparent 0, #000 4%, #000 92%, transparent 100%);
+    }
+    .brand-mask {
+      position: relative;
+      z-index: 2;
+      width: 148px;
+      height: 148px;
+      overflow: hidden;
+      clip-path: polygon(24% 2%,76% 2%,98% 24%,98% 76%,76% 98%,24% 98%,2% 76%,2% 24%);
+      background: #061114;
+      border: 1px solid rgba(74, 145, 146, .42);
     }
     .brand-source {
       position: absolute;
-      z-index: -1;
+      z-index: 0;
       left: -6px;
       top: -60px;
       width: 864px;
@@ -163,20 +173,28 @@ _DASHBOARD = r'''<!doctype html>
       height: 1536px;
       object-fit: cover;
       pointer-events: none;
+      filter: grayscale(.12) saturate(.58) contrast(1.32) brightness(.72);
     }
-    .brand-source-label {
+    .brand-mask::after {
+      content: "";
       position: absolute;
-      right: 16px;
-      bottom: 8px;
-      padding: 3px 7px;
-      border: 1px solid rgba(70, 226, 218, .25);
-      border-radius: 999px;
-      background: rgba(3, 12, 15, .82);
-      color: #6f979b;
-      font: 700 8px/1 var(--mono);
-      letter-spacing: .08em;
-      text-transform: uppercase;
+      z-index: 3;
+      inset: 8px;
+      clip-path: inherit;
+      border: 1px solid rgba(104, 247, 154, .2);
+      pointer-events: none;
     }
+    .brand-circuit {
+      position: absolute;
+      z-index: 1;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    .brand-circuit path { fill: none; stroke: #2f6d70; stroke-width: 1.15; vector-effect: non-scaling-stroke; }
+    .brand-circuit circle { fill: #061114; stroke: #4da5a2; stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+    .brand-circuit .signal { stroke: #55bcb7; stroke-dasharray: 3 12; animation: trace-flow 7s linear infinite; }
 
     .runtime-stack { display: flex; align-items: center; justify-content: flex-end; gap: 22px; min-width: 238px; }
     .runtime-chip {
@@ -233,8 +251,8 @@ _DASHBOARD = r'''<!doctype html>
       padding: 16px;
       border: 1px solid #21515a;
       border-radius: 14px;
-      background: linear-gradient(145deg, rgba(10,28,32,.9), rgba(4,11,13,.95));
-      box-shadow: inset 0 0 30px rgba(54,240,228,.05);
+      background: rgba(5, 17, 20, .46);
+      box-shadow: none;
     }
     .hero-proof .proof-line { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #18333a; font: 700 10px/1.35 var(--mono); color: #718b91; }
     .hero-proof .proof-line:last-child { border-bottom: 0; }
@@ -252,9 +270,9 @@ _DASHBOARD = r'''<!doctype html>
       padding: 7px;
       border: 1px solid #2b6268;
       border-radius: 13px;
-      background: rgba(10, 25, 29, .9);
+      background: rgba(7, 20, 24, .56);
       backdrop-filter: blur(16px);
-      box-shadow: 0 12px 40px rgba(0,0,0,.28), inset 0 0 24px rgba(54,240,228,.04);
+      box-shadow: none;
       scrollbar-width: none;
     }
     .quick-nav::-webkit-scrollbar { display: none; }
@@ -269,8 +287,9 @@ _DASHBOARD = r'''<!doctype html>
       margin-top: 18px;
       border: 1px solid #1d454c;
       border-radius: 16px;
-      background: linear-gradient(145deg, rgba(9,24,28,.96), rgba(5,14,17,.95));
-      box-shadow: inset 0 1px rgba(255,255,255,.025), 0 20px 50px rgba(0,0,0,.24);
+      background: rgba(5, 16, 19, .48);
+      box-shadow: none;
+      backdrop-filter: blur(5px);
     }
     .section-block::before {
       content: "";
@@ -298,7 +317,7 @@ _DASHBOARD = r'''<!doctype html>
       animation: signal-pulse 3s ease-in-out infinite;
     }
 
-    .control-room { padding: 18px; border-color: #27b9b2; box-shadow: inset 0 0 40px rgba(54,240,228,.04), 0 0 0 1px rgba(54,240,228,.05); }
+    .control-room { padding: 18px; border-color: #277b7a; box-shadow: none; }
     .section-head { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin: 0 0 18px; }
     h2 { margin: 5px 0 0; font-size: clamp(24px, 3vw, 34px); line-height: 1.1; letter-spacing: -.035em; }
     h3 { letter-spacing: -.02em; }
@@ -312,21 +331,22 @@ _DASHBOARD = r'''<!doctype html>
       border: 1px solid #1e474e;
       border-radius: 13px;
       background:
-        radial-gradient(circle at 72% 45%, rgba(54,240,228,.035), transparent 24%),
         linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px),
         linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
-        #061316;
-      background-size: auto, 20px 20px, 20px 20px, auto;
-      box-shadow: inset 0 0 45px rgba(0,0,0,.28);
+        rgba(3, 13, 16, .42);
+      background-size: 20px 20px, 20px 20px, auto;
+      box-shadow: none;
     }
     .flow-wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-    .bus-base, .bus-progress, .tamper-wire { fill: none; vector-effect: non-scaling-stroke; }
-    .bus-base { stroke: #20464d; stroke-width: 8; }
-    .bus-base-thin { fill: none; stroke: #315c63; stroke-width: 1.5; stroke-dasharray: 3 8; vector-effect: non-scaling-stroke; }
-    .bus-progress { stroke: var(--green); stroke-width: 3; stroke-dasharray: 9 13; filter: drop-shadow(0 0 5px rgba(104,247,154,.8)); animation: trace-flow 3.2s linear infinite; opacity: 0; }
-    .tamper-wire { stroke: var(--red); stroke-width: 3; stroke-dasharray: 5 11; filter: drop-shadow(0 0 6px rgba(255,93,104,.75)); animation: trace-flow 2.1s linear infinite reverse; opacity: 0; }
-    .flow-via { fill: #061316; stroke: #3a6870; stroke-width: 2; vector-effect: non-scaling-stroke; }
-    .flow-packet { fill: var(--cyan); filter: drop-shadow(0 0 7px var(--cyan)); opacity: 0; }
+    .bus-base, .bus-base-thin, .bus-tap, .bus-progress, .tamper-wire { fill: none; vector-effect: non-scaling-stroke; }
+    .bus-base { stroke: #28585e; stroke-width: 2.2; }
+    .bus-base-thin { stroke: #315c63; stroke-width: 1; stroke-dasharray: 3 8; }
+    .bus-tap { stroke: #21494e; stroke-width: 1.15; }
+    .bus-progress { stroke: var(--green); stroke-width: 2.4; stroke-dasharray: 9 13; filter: none; animation: trace-flow 3.2s linear infinite; opacity: 0; }
+    .tamper-wire { stroke: var(--red); stroke-width: 2; stroke-dasharray: 5 11; filter: none; animation: trace-flow 2.1s linear infinite reverse; opacity: 0; }
+    .flow-via { fill: #061316; stroke: #478086; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+    .flow-via-core { fill: #3d7478; opacity: .85; }
+    .flow-packet { fill: var(--cyan); filter: none; opacity: 0; }
     .flow-board[data-state="running"] .bus-progress,
     .flow-board[data-state="verified"] .bus-progress,
     .flow-board[data-state="failed"] .bus-progress,
@@ -431,7 +451,8 @@ _DASHBOARD = r'''<!doctype html>
       margin-top: 12px;
       border: 1px solid #1b3c43;
       border-radius: 14px;
-      background: rgba(6,16,19,.92);
+      background: rgba(5,16,19,.46);
+      backdrop-filter: blur(5px);
     }
     .stat { min-height: 98px; padding: 17px; border-right: 1px solid #1b3c43; }
     .stat:last-child { border: 0; }
@@ -450,8 +471,9 @@ _DASHBOARD = r'''<!doctype html>
       padding: 19px;
       border: 1px solid #2a5259;
       border-radius: 12px;
-      background: linear-gradient(145deg, rgba(11,28,32,.96), rgba(7,17,20,.96));
-      box-shadow: inset 0 0 32px rgba(54,240,228,.025);
+      background: rgba(6, 18, 21, .5);
+      box-shadow: none;
+      backdrop-filter: blur(5px);
     }
     .card::before { content: ""; position: absolute; inset: 8px auto 8px -1px; width: 2px; background: linear-gradient(transparent, var(--cyan), transparent); opacity: .7; }
     .card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
@@ -485,7 +507,7 @@ _DASHBOARD = r'''<!doctype html>
     .verify { min-height: 34px; padding: 0 10px; border-color: #31535b; background: #10242a; color: #b5c9cd; box-shadow: none; }
     .tamper { border-color: #8b3640; background: #2b1116; color: var(--red); box-shadow: inset 0 0 18px rgba(255,93,104,.08); }
 
-    .proof-console { overflow: hidden; border: 1px solid #24464d; border-radius: 13px; background: #071417; }
+    .proof-console { overflow: hidden; border: 1px solid #24464d; border-radius: 13px; background: rgba(5,16,19,.54); backdrop-filter: blur(5px); }
     .run { display: grid; grid-template-columns: minmax(0,1.5fr) .72fr .72fr .7fr auto; align-items: center; gap: 12px; min-height: 72px; padding: 14px 16px; border-bottom: 1px solid #1c363c; }
     .run:last-child { border: 0; }
     .run-title { font-weight: 760; }
@@ -517,8 +539,9 @@ _DASHBOARD = r'''<!doctype html>
       padding: 10px;
       border: 1px solid #406d83;
       border-radius: 13px;
-      background: linear-gradient(180deg, #20324a, #15283d);
-      box-shadow: inset 0 0 25px rgba(117,169,255,.1), 0 0 22px rgba(54,240,228,.08);
+      background: rgba(18, 34, 48, .58);
+      box-shadow: none;
+      backdrop-filter: blur(5px);
       font: 750 10px/1.35 var(--mono);
       color: #a9bdcb;
     }
@@ -526,8 +549,8 @@ _DASHBOARD = r'''<!doctype html>
     .dock-command { min-width: 0; padding: 9px 12px; border: 1px solid #506c8d; border-radius: 7px; background: rgba(184,213,255,.13); color: #7af4d9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .dock-power { text-align: right; color: #aabdc7; }
 
-    .studio { position: relative; margin: 16px 0; padding: 26px; border: 1px solid #31525b; border-radius: 14px; background: linear-gradient(145deg, rgba(10,25,29,.98), rgba(7,13,18,.98)); box-shadow: inset 0 1px rgba(255,255,255,.035), 0 25px 90px rgba(0,0,0,.24); overflow: hidden; }
-    .studio::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle at 82% 0, rgba(54,240,228,.09), transparent 32%); }
+    .studio { position: relative; margin: 16px 0; padding: 26px; border: 1px solid #31525b; border-radius: 14px; background: rgba(5,15,19,.52); box-shadow: none; backdrop-filter: blur(6px); overflow: hidden; }
+    .studio::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, transparent 0 77%, rgba(44,103,106,.035) 77% 77.15%, transparent 77.15%); }
     .studio-intro { position: relative; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 20px; align-items: end; }
     .studio-intro h2 { max-width: 820px; margin: 7px 0 10px; font-size: clamp(28px,4vw,50px); line-height: 1.02; letter-spacing: -.04em; }
     .studio-copy { max-width: 760px; margin: 0; color: #95a9ae; }
@@ -552,10 +575,12 @@ _DASHBOARD = r'''<!doctype html>
     .agent-zone { border: 1px solid rgba(54,84,92,.28); background: rgba(8,17,22,.24); }
     .trust-zone { border: 1px solid #327b71; background: linear-gradient(180deg,rgba(10,48,45,.72),rgba(5,24,25,.88)); box-shadow: inset 0 0 30px rgba(54,240,228,.04); }
     .zone-label { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 11px; color: #72898f; font: 800 9px/1.3 var(--mono); letter-spacing: .15em; text-transform: uppercase; }
-    .agent-pipeline { display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); gap: 10px; }
-    .studio-agent { position: relative; min-height: 136px; padding: 12px; border: 1px solid rgba(66,96,104,.2); border-radius: 7px; background: rgba(6,15,19,.26); overflow: visible; transition: border-color .2s ease, background .2s ease; }
-    .studio-agent:not(:last-child)::after { content: ""; position: absolute; z-index: 1; top: 34px; left: calc(100% + 1px); width: 11px; height: 1px; background: #3d7478; }
-    .studio-agent .agent-index { color: #577078; font: 800 9px var(--mono); }
+    .agent-pipeline { position: relative; isolation: isolate; display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); gap: 10px; }
+    .agent-pipeline::before { content: ""; position: absolute; z-index: 0; top: 17px; left: 18px; right: 18px; height: 1px; background: linear-gradient(90deg,#245358,#43908e 52%,#245358); }
+    .studio-agent { position: relative; z-index: 1; min-height: 136px; padding: 12px; border: 1px solid rgba(66,96,104,.18); border-radius: 7px; background: rgba(4,13,16,.2); overflow: visible; transition: border-color .2s ease, background .2s ease; }
+    .studio-agent:not(:last-child)::after { content: ""; position: absolute; z-index: 1; top: 17px; left: calc(100% + 1px); width: 11px; height: 1px; background: #4a8a88; }
+    .studio-agent .agent-index { display: inline-flex; align-items: center; gap: 6px; color: #69888d; font: 800 9px var(--mono); }
+    .studio-agent .agent-index::before { content: ""; width: 7px; height: 7px; border: 1px solid #43817f; border-radius: 50%; background: #061316; }
     .studio-agent h3 { min-height: 36px; margin: 15px 0 8px; font-size: 12px; line-height: 1.2; }
     .studio-agent .agent-status { color: #83979d; font: 800 9px/1.4 var(--mono); letter-spacing: .08em; }
     .studio-agent .agent-hash { display: block; margin-top: 12px; color: #526a70; font: 700 8px/1.4 var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -563,7 +588,9 @@ _DASHBOARD = r'''<!doctype html>
     .studio-agent[data-status="completed"] { border-color: rgba(40,108,95,.72); }
     .studio-agent[data-status="handing_off"] { border-color: rgba(54,240,228,.78); box-shadow: none; }
     .studio-agent[data-status="failed"] { border-color: #a93d48; background: rgba(86,19,29,.2); }
-    .handoff-packet { position: absolute; z-index: 3; top: 30px; right: -5px; width: 8px; height: 8px; border-radius: 2px; background: #36f0e4; box-shadow: none; opacity: 0; }
+    .studio-agent[data-status="completed"] .agent-index::before { border-color: var(--green); background: var(--green); }
+    .studio-agent[data-status="working"] .agent-index::before, .studio-agent[data-status="handing_off"] .agent-index::before { border-color: var(--cyan); background: var(--cyan); }
+    .handoff-packet { position: absolute; z-index: 3; top: 13px; right: -5px; width: 8px; height: 8px; border-radius: 50%; background: #36f0e4; box-shadow: none; opacity: 0; }
     .studio-agent[data-status="handing_off"] .handoff-packet { opacity: 1; animation: studio-packet .65s ease-in-out infinite; }
     @keyframes studio-packet { 0%{transform:translateX(-5px);opacity:0} 30%{opacity:1} 100%{transform:translateX(12px);opacity:0} }
     .trust-gate { min-height: 152px; padding: 15px; border: 1px solid #3d9185; border-radius: 8px; background: repeating-linear-gradient(135deg,rgba(54,240,228,.025) 0 8px,transparent 8px 16px); }
@@ -615,11 +642,13 @@ _DASHBOARD = r'''<!doctype html>
       .studio-intro, .studio-zones, .studio-bottom { grid-template-columns: 1fr; }
       .studio-badges { justify-content: flex-start; }
       .agent-pipeline { grid-template-columns: repeat(2,minmax(0,1fr)); }
+      .agent-pipeline::before { display: none; }
       .studio-agent:nth-child(2n)::after { display: none; }
     }
 
     @media (max-width: 1100px) and (min-width: 901px) {
       .agent-pipeline { grid-template-columns: repeat(4,minmax(0,1fr)); }
+      .agent-pipeline::before { display: none; }
       .studio-agent:nth-child(4)::after { display: none; }
     }
 
@@ -629,9 +658,10 @@ _DASHBOARD = r'''<!doctype html>
       .review-strip > span { max-width: 170px; }
       .strip-statuses .micro-status:nth-child(2) { display: none; }
       .masthead { padding: 22px 5px 14px; }
-      .brand-lockup { width: 100%; height: 128px; }
-      .brand-source { width: 648px; height: 1152px; left: -5px; top: -44px; }
-      .brand-source-label { display: none; }
+      .brand-lockup { width: min(330px, 100%); height: 108px; }
+      .brand-mask { width: 108px; height: 108px; }
+      .brand-source { width: 630px; height: 1120px; left: -4px; top: -44px; }
+      .brand-circuit { opacity: .72; }
       .runtime-stack { gap: 18px; min-width: 0; }
       .hero { min-height: 0; padding: 35px 6px 22px; }
       h1 { font-size: clamp(40px, 12vw, 58px); }
@@ -678,8 +708,10 @@ _DASHBOARD = r'''<!doctype html>
   </svg>
   <svg class="board-traces" viewBox="0 0 1440 2400" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
     <path class="trace" d="M0 180H160Q190 180 190 210V420Q190 450 220 450H390"/>
+    <path class="trace secondary" d="M0 198H142Q172 198 172 228V438Q172 468 202 468H390"/>
     <path class="trace hot" d="M0 220H120Q150 220 150 250V650Q150 680 180 680H390"/>
     <path class="trace" d="M1440 150H1270Q1240 150 1240 180V390Q1240 420 1210 420H1040"/>
+    <path class="trace secondary" d="M1440 168H1288Q1258 168 1258 198V408Q1258 438 1228 438H1040"/>
     <path class="trace hot" d="M1440 580H1320Q1290 580 1290 610V940Q1290 970 1260 970H1110"/>
     <path class="trace" d="M0 1090H120Q150 1090 150 1120V1490Q150 1520 180 1520H330"/>
     <path class="trace fail" d="M1440 1260H1330Q1300 1260 1300 1290V1680Q1300 1710 1270 1710H1120"/>
@@ -688,6 +720,9 @@ _DASHBOARD = r'''<!doctype html>
     <circle class="via" cx="390" cy="450" r="6"/><circle class="via" cx="390" cy="680" r="6"/>
     <circle class="via" cx="1040" cy="420" r="6"/><circle class="via" cx="1110" cy="970" r="6"/>
     <circle class="via" cx="330" cy="1520" r="6"/><circle class="via" cx="1120" cy="1710" r="6"/>
+    <circle class="via-core" cx="390" cy="450" r="2"/><circle class="via-core" cx="390" cy="680" r="2"/>
+    <circle class="via-core" cx="1040" cy="420" r="2"/><circle class="via-core" cx="1110" cy="970" r="2"/>
+    <circle class="via-core" cx="330" cy="1520" r="2"/><circle class="via-core" cx="1120" cy="1710" r="2"/>
   </svg>
 
   <div class="shell">
@@ -701,9 +736,13 @@ _DASHBOARD = r'''<!doctype html>
     </div>
 
     <header class="masthead">
-      <div class="brand-lockup">
-        <img class="brand-source" src="__OSA_BRAND_DATA__" width="864" height="1536" alt="OsaTechGPT · Proof Systems · Mission Control">
-        <span class="brand-source-label">approved OsaTechGPT lockup</span>
+      <div class="brand-lockup" role="img" aria-label="OsaTechGPT">
+        <div class="brand-mask"><img class="brand-source" src="__OSA_BRAND_DATA__" width="864" height="1536" alt="OsaTechGPT mask logo"></div>
+        <svg class="brand-circuit" viewBox="0 0 410 148" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M128 38H190V20H282"/><path d="M128 74H222V128H356"/><path d="M128 110H174V92H310V114H404"/>
+          <path class="signal" d="M128 74H222V128H356"/>
+          <circle cx="190" cy="20" r="4"/><circle cx="222" cy="128" r="4"/><circle cx="310" cy="92" r="4"/><circle cx="404" cy="114" r="4"/>
+        </svg>
       </div>
       <div class="runtime-stack" aria-label="Runtime providers">
         <div class="runtime-chip openai-chip" role="img" aria-label="OpenAI provider"><svg class="openai-wordmark" aria-hidden="true"><use href="#openai-wordmark"></use></svg></div>
@@ -788,13 +827,18 @@ _DASHBOARD = r'''<!doctype html>
         </div>
         <div class="flow-board" id="flow-board" data-state="idle" aria-label="Backend-driven proof flow">
           <svg class="flow-wires" viewBox="0 0 1000 278" preserveAspectRatio="none" aria-hidden="true">
-            <path class="bus-base" d="M108 52V72H892V52"/>
+            <path class="bus-base" d="M108 15V72H892V15"/>
             <path class="bus-base-thin" d="M108 72H892"/>
+            <path class="bus-base-thin" d="M108 80H892"/>
+            <path class="bus-tap" d="M304 15V72M500 15V72M696 15V72M108 80V192H304M892 80V192H696"/>
             <path class="bus-progress" d="M108 72H892"/>
             <path class="tamper-wire" d="M696 72V216H962"/>
             <circle class="flow-via" cx="108" cy="72" r="6"/><circle class="flow-via" cx="304" cy="72" r="6"/>
             <circle class="flow-via" cx="500" cy="72" r="6"/><circle class="flow-via" cx="696" cy="72" r="6"/>
             <circle class="flow-via" cx="892" cy="72" r="6"/><circle class="flow-via" cx="696" cy="216" r="6"/>
+            <circle class="flow-via-core" cx="108" cy="72" r="2"/><circle class="flow-via-core" cx="304" cy="72" r="2"/>
+            <circle class="flow-via-core" cx="500" cy="72" r="2"/><circle class="flow-via-core" cx="696" cy="72" r="2"/>
+            <circle class="flow-via-core" cx="892" cy="72" r="2"/><circle class="flow-via-core" cx="696" cy="216" r="2"/>
             <circle class="flow-packet" r="6"><animateMotion dur="2.4s" repeatCount="indefinite" path="M108 72H892"/></circle>
           </svg>
           <div class="flow-grid" id="flow-grid">
