@@ -7,6 +7,7 @@ runtime, evidence recorder, Proof Bundle generator, and verification boundary.
 from __future__ import annotations
 
 import hashlib
+import html
 import json
 import os
 import re
@@ -77,6 +78,12 @@ GENERATION_TARGET_BYTES = {
     "site/index.html": 12_000,
     "site/styles.css": 8_000,
     "site/data.json": 4_000,
+}
+HTML_RECOVERY_CATEGORIES = {
+    "structured_output_invalid",
+    "structured_output_truncated",
+    "structured_output_incomplete",
+    "stage_contract_rejected",
 }
 MODEL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$")
 RESPONSE_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$")
@@ -620,6 +627,92 @@ def _validate_artifacts(value: Any) -> tuple[ProposedArtifact, ...]:
     return tuple(_validate_artifact(by_path[path], path) for path in ARTIFACT_MEDIA_TYPES)
 
 
+def _safe_html_text(value: Any, fallback: str, limit: int) -> str:
+    """Return bounded display text that cannot become an external reference."""
+
+    text = value if isinstance(value, str) else fallback
+    text = " ".join(text.split()).strip() or fallback
+    text = re.sub(r"(?i)https?://", "", text)
+    text = re.sub(r"(?i)javascript\s*:", "javascript ", text)
+    text = re.sub(r"(?i)data\s*:\s*text/javascript", "data text", text)
+    text = re.sub(r"(?i)@import", "import", text)
+    text = re.sub(r"(?i)\bon[a-z]+\s*=", "event ", text)
+    text = text.replace("//", "/ /")
+    return html.escape(text[:limit], quote=True)
+
+
+def _render_recovered_html(content_output: dict[str, Any]) -> dict[str, Any]:
+    """Materialize a safe HTML artifact from the validated content-agent model."""
+
+    brand = _safe_html_text(content_output.get("brand_name"), "Verified Build", 80)
+    eyebrow = _safe_html_text(content_output.get("eyebrow"), "VERIFIED DELIVERY", 100)
+    headline = _safe_html_text(
+        content_output.get("headline"), "Build with verifiable evidence", 180
+    )
+    description = _safe_html_text(
+        content_output.get("description"),
+        "A static, accessible website artifact produced through a recorded agent workflow.",
+        420,
+    )
+    primary_cta = _safe_html_text(
+        content_output.get("primary_cta"), "Start a verified review", 90
+    )
+    secondary_cta = _safe_html_text(
+        content_output.get("secondary_cta"), "Explore the controls", 90
+    )
+    raw_titles = content_output.get("feature_titles", [])
+    raw_descriptions = content_output.get("feature_descriptions", [])
+    titles = list(raw_titles) if isinstance(raw_titles, list) else []
+    descriptions = list(raw_descriptions) if isinstance(raw_descriptions, list) else []
+    feature_cards = []
+    for index in range(3):
+        title = _safe_html_text(
+            titles[index] if index < len(titles) else None,
+            ("Constrained", "Recorded", "Verified")[index],
+            110,
+        )
+        detail = _safe_html_text(
+            descriptions[index] if index < len(descriptions) else None,
+            "A bounded control keeps the delivered artifact clear and reviewable.",
+            320,
+        )
+        feature_cards.append(
+            f'<article class="feature-card"><span aria-hidden="true">0{index + 1}</span>'
+            f"<h3>{title}</h3><p>{detail}</p></article>"
+        )
+    feature_html = "".join(feature_cards)
+    artifact_content = f'''<!doctype html>
+<html lang="en" data-apr-build="verified-website-build-v1">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="{description}">
+  <title>{brand}</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header"><a class="brand" href="#top">{brand}</a><nav aria-label="Primary"><a href="#features">{secondary_cta}</a><a href="#cta">{primary_cta}</a></nav></header>
+  <main id="top">
+    <section class="hero" data-apr-section="hero"><p class="eyebrow">{eyebrow}</p><h1>{headline}</h1><p class="lede">{description}</p><div class="hero-actions"><a class="button" href="#cta">{primary_cta}</a><a class="text-link" href="#features">{secondary_cta}</a></div></section>
+    <section class="features" id="features" data-apr-section="features" aria-labelledby="features-title"><div class="section-heading"><p class="eyebrow">THREE CONTROL LAYERS</p><h2 id="features-title">Designed for work that must hold up.</h2></div><div class="feature-grid">{feature_html}</div></section>
+    <section class="cta" id="cta" data-apr-section="cta" aria-labelledby="cta-title"><p class="eyebrow">INDEPENDENTLY VERIFIABLE</p><h2 id="cta-title">{headline}</h2><p>{description}</p><a class="button" href="#top">{primary_cta}</a></section>
+  </main>
+  <footer><p>{brand} · Static verified website build</p></footer>
+</body>
+</html>
+'''
+    artifact = {
+        "path": "site/index.html",
+        "media_type": "text/html",
+        "content": artifact_content,
+    }
+    validated = _validate_artifact(artifact, "site/index.html")
+    return {
+        "summary": "Recovered the semantic HTML artifact with the bounded APR renderer.",
+        "artifact": validated.to_dict(),
+    }
+
+
 def _usage(response: Any) -> dict[str, int]:
     usage = getattr(response, "usage", None)
     result: dict[str, int] = {}
@@ -793,6 +886,7 @@ class MissionStudioOpenAIProvider:
         started = time.monotonic()
         response: Any | None = None
         output: dict[str, Any] | None = None
+        recovery_category: str | None = None
         attempt_count = 0
         while attempt_count < MAX_STAGE_ATTEMPTS:
             attempt_count += 1
@@ -848,6 +942,14 @@ class MissionStudioOpenAIProvider:
                     "structured_output_incomplete",
                     "stage_contract_rejected",
                 }
+                if (
+                    stage_id == "html_builder"
+                    and retryable
+                    and attempt_count >= MAX_STAGE_ATTEMPTS
+                ):
+                    output = _render_recovered_html(self._outputs["content"])
+                    recovery_category = enriched.category
+                    break
                 if not retryable or attempt_count >= MAX_STAGE_ATTEMPTS:
                     raise enriched from error
                 stage_input = {
@@ -862,10 +964,18 @@ class MissionStudioOpenAIProvider:
                 classified, transient = _classify_request_error(
                     error, stage_id, attempt_count
                 )
+                if (
+                    stage_id == "html_builder"
+                    and transient
+                    and attempt_count >= MAX_STAGE_ATTEMPTS
+                ):
+                    output = _render_recovered_html(self._outputs["content"])
+                    recovery_category = classified.category
+                    break
                 if not transient or attempt_count >= MAX_STAGE_ATTEMPTS:
                     raise classified from error
                 _retry_pause(RETRY_BACKOFF_SECONDS[attempt_count - 1])
-        if response is None or output is None:
+        if output is None:
             raise MissionStudioOpenAIError(
                 "openai_request_failed",
                 stage=stage_id,
@@ -897,7 +1007,12 @@ class MissionStudioOpenAIProvider:
             "token_usage": usage,
             "latency_ms": latency_ms,
             "attempt_count": attempt_count,
+            "completion_mode": (
+                "deterministic_contract_recovery" if recovery_category else "model"
+            ),
         }
+        if recovery_category is not None:
+            record["recovery_category"] = recovery_category
         self._records.append(record)
         if stage_id == "qa":
             self._build_proposal()
@@ -912,6 +1027,7 @@ class MissionStudioOpenAIProvider:
             event_output["approved"] = output["approved"]
         if "artifact" in output:
             event_output["artifact_paths"] = [output["artifact"]["path"]]
+        event_output["completion_mode"] = record["completion_mode"]
         return {
             "stage_id": stage_id,
             "stage_name": STAGE_NAMES[stage_id],
