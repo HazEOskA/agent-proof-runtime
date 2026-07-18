@@ -1128,7 +1128,16 @@ class MissionStudioDockerContractTests(unittest.TestCase):
         self.assertIn(
             "grid-template-columns: repeat(7,minmax(0,1fr))", html
         )
-        self.assertIn("background: rgba(6,15,19,.26)", html)
+        self.assertIn('class="brand-mask"', html)
+        self.assertIn('class="brand-circuit"', html)
+        self.assertNotIn('class="brand-source-label"', html)
+        self.assertNotIn('class="brand-identity"', html)
+        self.assertIn(".board-traces {", html)
+        self.assertIn("filter: none;", html)
+        self.assertIn(".agent-pipeline::before", html)
+        self.assertIn("background: rgba(4,13,16,.2)", html)
+        self.assertIn('class="bus-tap"', html)
+        self.assertIn('class="flow-via-core"', html)
         self.assertNotIn("api_key:", html)
         for stage_id in (
             "planner",
