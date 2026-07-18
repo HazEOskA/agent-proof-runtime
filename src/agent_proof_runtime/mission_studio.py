@@ -45,7 +45,10 @@ STUDIO_SESSION = re.compile(r"^studio-[0-9a-f]{32}$")
 STAGES = (
     ("planner", "Mission Planner Agent", "planning"),
     ("research", "Research Agent", "researching"),
-    ("builder", "Website Builder Agent", "building"),
+    ("content", "Content Architect Agent", "architecting_content"),
+    ("html_builder", "HTML Builder Agent", "building_markup"),
+    ("css_builder", "CSS Designer Agent", "styling"),
+    ("data_builder", "Data Builder Agent", "building_data"),
     ("qa", "QA Agent", "qa"),
 )
 ARTIFACT_PATHS = (
@@ -251,10 +254,24 @@ def _stage_results(request: MissionStudioRequest) -> tuple[dict[str, Any], ...]:
             ],
         },
         {
-            "artifact_paths": list(ARTIFACT_PATHS),
-            "page_structure": ["hero", "features", "cta"],
+            "content_model": "verified_website_content_v1",
             "feature_count": len(data["features"]),
-            "network_dependencies": 0,
+            "trust_point_count": 3,
+        },
+        {
+            "artifact_path": "site/index.html",
+            "page_structure": ["hero", "features", "cta"],
+            "semantic": True,
+        },
+        {
+            "artifact_path": "site/styles.css",
+            "responsive": True,
+            "external_dependencies": 0,
+        },
+        {
+            "artifact_path": "site/data.json",
+            "valid_json": True,
+            "schema_version": data["schema_version"],
         },
         {
             "checks": [
@@ -276,7 +293,10 @@ def _stage_results(request: MissionStudioRequest) -> tuple[dict[str, Any], ...]:
                 "summary": {
                     "planner": "Locked the fixed website structure and artifact constraints.",
                     "research": "Prepared deterministic fixture content signals for the page.",
-                    "builder": "Prepared the four declared static website artifacts.",
+                    "content": "Structured the verified website content model.",
+                    "html_builder": "Prepared the declared semantic HTML artifact.",
+                    "css_builder": "Prepared the declared responsive CSS artifact.",
+                    "data_builder": "Prepared the declared structured data artifact.",
                     "qa": "Reviewed structure and safety before APR handoff.",
                 }[stage_id],
                 "output": output,
@@ -288,7 +308,7 @@ def _stage_results(request: MissionStudioRequest) -> tuple[dict[str, Any], ...]:
 
 
 def _handoffs(stages: tuple[dict[str, Any], ...]) -> tuple[dict[str, str], ...]:
-    destinations = ("research", "builder", "qa", "apr")
+    destinations = (*[stage[0] for stage in STAGES[1:]], "apr")
     return tuple(
         {
             "source_stage": stage["stage_id"],
@@ -540,7 +560,10 @@ class MissionStudioManager:
                 provider = MissionStudioOpenAIProvider(
                     request, client=self.openai_client
                 )
-            completed_progress = (18, 36, 55, 72)
+            completed_progress = tuple(
+                round(72 * (index + 1) / len(STAGES))
+                for index in range(len(STAGES))
+            )
             for index, (stage_id, stage_name, state) in enumerate(STAGES):
                 self._update(
                     session_id,
@@ -564,9 +587,11 @@ class MissionStudioManager:
                     result = provider.run_stage(stage_id)
                     handoff = {
                         "source_stage": stage_id,
-                        "destination_stage": ("research", "builder", "qa", "apr")[
-                            index
-                        ],
+                        "destination_stage": (
+                            STAGES[index + 1][0]
+                            if index + 1 < len(STAGES)
+                            else "apr"
+                        ),
                         "output_hash": result["output_hash"],
                     }
                 self._agent(
