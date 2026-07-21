@@ -236,15 +236,18 @@ boundary really exists.
 
 ## Build Week provenance and collaboration
 
-The public GitHub `main` baseline before Build Week publication is `8bba7ed`. The
-Build Week branch preserves the original Codex implementation lineage
+The repository `main` baseline before the final Build Week continuation was
+`8bba7ed`. The preserved branch contains the original Codex implementation lineage
 (`4a22da3` -> `9ff5152` -> `fcfb7d0` -> `f03fe35`) and connects it to the public
 GitHub history through merge commit `1b51055`, without rewriting or force-pushing
 either history.
 
-The branch extends that preserved implementation incrementally with the v1
+The preserved continuation was merged into `main` through `2eabbd0`, followed by
+the final demo-documentation merge `bc8e85c` and CSS artifact-ceiling fix `e0ffbd3`.
+The resulting `main` contains Mission Studio, the live GPT-5.6 path, the v1
 manifest/provider/proof path, Tamper Lab, security coverage, competition
-documentation, product doctrine, and deployment preparation.
+documentation, product doctrine, and the public Railway deployment. The preserved
+implementation checkpoints were not rewritten or force-pushed.
 
 Human architectural decisions locked the product as sandbox-first, required honest
 `UNANCHORED`/`development-only` labels, preserved backward compatibility, and chose
