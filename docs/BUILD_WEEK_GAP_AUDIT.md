@@ -18,8 +18,8 @@ tests, a containerized judge-path run, and one controlled live GPT-5.6 request.
 | Artifact tampering | Delivered | disposable Tamper Lab and tests | None |
 | Event tampering | Delivered | disposable Tamper Lab and tests | None |
 | Critical metadata tampering | Delivered | disposable Tamper Lab and tests | None |
-| Health endpoint | Delivered, container-validated | `GET /health`, HTTP test, Docker response `ok: true`, version `0.3.0` | Hosted health check remains |
-| Docker/deployment path | Delivered, locally validated | checked-in `Dockerfile`, `.dockerignore`, `railway.json`; non-root `uid=10001(apr)`; Docker `running / healthy`; full judge path passed | Public hosted deployment |
+| Health endpoint | Delivered, hosted-validated | `GET /health`; public Railway response on 2026-07-21: `ok: true`, `status: healthy`, version `0.3.0` | None for judging path |
+| Docker/deployment path | Delivered, publicly deployed | checked-in `Dockerfile`, `.dockerignore`, `railway.json`; non-root `uid=10001(apr)`; local Docker judge path passed; Railway deployment status successful and public Mission Control served on 2026-07-21 | Hosted storage remains ephemeral |
 | English competition README | Delivered | root `README.md` | None |
 | Baseline and Codex documentation | Delivered | `BEFORE_BUILD_WEEK.md`, changelog, collaboration doc | None |
 | No-secret persistence | Delivered, live-validated | mocked tests plus live run scan found no API key in persisted run files; process environment removed after run | None for local provider flow |
@@ -30,7 +30,7 @@ tests, a containerized judge-path run, and one controlled live GPT-5.6 request.
 
 The competition-critical fixture vertical slice is complete and independently
 verifiable. The official GPT-5.6 provider is implemented and live-validated in one
-controlled local run. The checked-in Docker image and full Mission Control judge
-path are locally validated as non-root and healthy. Real gVisor execution is not
-claimed without `runsc`, the hosted deployment remains to be verified, and external
-trust remains an explicit roadmap item.
+controlled local run. The checked-in Docker image and full Mission Control judge path are locally validated
+as non-root and healthy. The public Railway deployment and `/health` endpoint were
+verified on 2026-07-21. Real gVisor execution is not claimed without `runsc`, and
+external trust remains an explicit roadmap item.
