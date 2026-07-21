@@ -13,7 +13,7 @@ Target duration: 90 seconds. Record the hosted Mission Studio flow in live GPT-5
 
 ## Voiceover and shot plan
 
-### 0–10 seconds — problem and product
+### 0–9 seconds — problem and product
 
 **Voiceover**
 
@@ -22,65 +22,74 @@ Target duration: 90 seconds. Record the hosted Mission Studio flow in live GPT-5
 **Screen**
 
 - Start on the Mission Studio hero.
-- Hold on the product name and the main mission flow.
+- Hold on the product name and the complete connected flow.
 - Slow zoom toward the mission brief and provider controls.
 
-### 10–28 seconds — live seven-stage execution
+### 9–20 seconds — how Codex was used
 
 **Voiceover**
 
-“I give Mission Studio a brief and select live GPT-5.6. Seven specialized stages run in sequence: planner, research, content architect, HTML builder, CSS designer, data builder, and QA. Each stage has strict structured output, bounded retries, and a fixed artifact contract.”
+“I used Codex to turn the architecture into production code: strict mission contracts, provider integration, security guards, regression tests, Mission Control, Tamper Lab, and the deployment workflow.”
+
+**Screen**
+
+- Follow the top PCB bus from Codex into the agent runtime.
+- Briefly show the repository identity or the complete Mission Control system.
+
+### 20–38 seconds — live seven-stage GPT-5.6 execution
+
+**Voiceover**
+
+“At runtime, I give Mission Studio a brief and select live GPT-5.6. Seven specialized stages run in sequence: planner, research, content architect, HTML builder, CSS designer, data builder, and QA. Strict Structured Outputs, bounded retries, and a fixed artifact contract keep the pipeline controlled.”
 
 **Screen**
 
 - Paste the prepared brief.
 - Select **LIVE GPT-5.6**.
-- Click the mission start control.
-- Follow the animated agents and handoffs as they move through the seven stages.
-- Do not cut away from the actual live execution state.
+- Click **START MISSION**.
+- Follow the animated agents and visible handoff bus through all seven stages.
 
-### 28–43 seconds — unique generated site and fail-closed boundary
+### 38–50 seconds — unique generated site
 
 **Voiceover**
 
-“There is no template fallback: every run produces a genuinely new website, or fails closed. The generated site is only the beginning.”
+“There is no template fallback: every run produces a genuinely new website, or fails closed.”
 
 **Screen**
 
 - Click **OPEN GENERATED SITE**.
-- Show the hero, navigation, at least two content sections, and responsive visual detail.
+- Show the hero, navigation, two content sections, and one visual detail.
 - Return to Mission Control with one clean cut.
 
-### 43–63 seconds — deterministic proof construction
+### 50–68 seconds — deterministic proof construction
 
 **Voiceover**
 
-“APR validates the exact files, enforces paths, media types and size limits, runs sixteen deterministic acceptance checks, records a hash-chained event history, and builds a Proof Bundle.”
+“APR then validates the exact files, enforces paths, media types and size limits, runs sixteen deterministic acceptance checks, records a hash-chained event history, and builds a Proof Bundle.”
 
 **Screen**
 
-- Move through the APR trust gate.
+- Follow the visible wire into the APR Trust Gate.
 - Zoom on `4/4` artifacts and `16/16` acceptance checks.
-- Show the artifact hashes, event replay, Merkle root, and bundle hash.
+- Show artifact hashes, event replay, Merkle root, and bundle hash.
 
-### 63–76 seconds — independent verification
+### 68–78 seconds — independent verification
 
 **Voiceover**
 
-“The independent verifier then recomputes the artifacts, acceptance evidence, Merkle root, and bundle hash. The result is PASSED, LOCAL_VERIFIED, and honestly UNANCHORED.”
+“The independent verifier recomputes the artifacts, acceptance evidence, Merkle root, and bundle hash. The result is PASSED, LOCAL_VERIFIED, and honestly UNANCHORED.”
 
 **Screen**
 
 - Hold on mission `PASSED`.
 - Hold on proof `LOCAL_VERIFIED`.
 - Hold on anchor `UNANCHORED`.
-- Keep all three labels readable in the final edit.
 
-### 76–85 seconds — Tamper Lab hero moment
+### 78–85 seconds — Tamper Lab
 
 **Voiceover**
 
-“Now the trust test. I tamper with a disposable copy. Verification immediately fails, while the original remains preserved and locally verified.”
+“Now I tamper with a disposable copy. Verification fails immediately, while the original remains preserved and locally verified.”
 
 **Screen**
 
@@ -88,30 +97,32 @@ Target duration: 90 seconds. Record the hosted Mission Studio flow in live GPT-5
 - Zoom on the red `FAILED` result and exact integrity reason.
 - Show that the original remains `LOCAL_VERIFIED`.
 
-### 85–90 seconds — closing doctrine
+### 85–90 seconds — close
 
 **Voiceover**
 
-“GPT-5.6 creates the work. It never validates its own proof. Agent Proof Runtime turns autonomous execution into evidence a human can independently verify. Proof before trust.”
+“GPT-5.6 creates the work. Codex accelerated the engineering. Neither validates its own proof. Proof before trust.”
 
 **Screen**
 
-- Return to the complete mission flow.
-- End on **PROOF BEFORE TRUST** and the repository/product identity.
+- Return to the complete connected system.
+- End on **PROOF BEFORE TRUST**.
 
 ## Full voiceover copy
 
 Autonomous agents can build useful software—but a polished result and an activity log do not prove what actually happened. This is Agent Proof Runtime.
 
-I give Mission Studio a brief and select live GPT-5.6. Seven specialized stages run in sequence: planner, research, content architect, HTML builder, CSS designer, data builder, and QA. Each stage has strict structured output, bounded retries, and a fixed artifact contract. There is no template fallback: every run produces a genuinely new website, or fails closed.
+I used Codex to turn the architecture into production code: strict mission contracts, provider integration, security guards, regression tests, Mission Control, Tamper Lab, and the deployment workflow.
 
-The generated site is only the beginning. APR validates the exact files, enforces paths, media types and size limits, runs sixteen deterministic acceptance checks, records a hash-chained event history, and builds a Proof Bundle.
+At runtime, I give Mission Studio a brief and select live GPT-5.6. Seven specialized stages run in sequence: planner, research, content architect, HTML builder, CSS designer, data builder, and QA. Strict Structured Outputs, bounded retries, and a fixed artifact contract keep the pipeline controlled. There is no template fallback: every run produces a genuinely new website, or fails closed.
 
-The independent verifier then recomputes the artifacts, acceptance evidence, Merkle root, and bundle hash. The result is PASSED, LOCAL_VERIFIED, and honestly UNANCHORED.
+APR then validates the exact files, enforces paths, media types and size limits, runs sixteen deterministic acceptance checks, records a hash-chained event history, and builds a Proof Bundle.
 
-Now the trust test. I tamper with a disposable copy. Verification immediately fails, while the original remains preserved and locally verified.
+The independent verifier recomputes the artifacts, acceptance evidence, Merkle root, and bundle hash. The result is PASSED, LOCAL_VERIFIED, and honestly UNANCHORED.
 
-GPT-5.6 creates the work. It never validates its own proof. Agent Proof Runtime turns autonomous execution into evidence a human can independently verify.
+Now I tamper with a disposable copy. Verification fails immediately, while the original remains preserved and locally verified.
+
+GPT-5.6 creates the work. Codex accelerated the engineering. Neither validates its own proof. Agent Proof Runtime turns autonomous execution into evidence a human can independently verify.
 
 Proof before trust.
 
@@ -121,4 +132,4 @@ Proof before trust.
 - Never imply external anchoring, hostile-code isolation, semantic truth, or independent validation by GPT-5.6.
 - Do not expose the API key, request payloads, raw model responses, hidden reasoning, browser storage, or server environment.
 - Use zooms only on real evidence states, generated-site details, artifact counts, acceptance counts, and tamper failure reasons.
-- Keep captions inside title-safe margins and manually correct technical terms before export.
+- Keep captions inside title-safe margins and manually correct `Codex`, `GPT-5.6`, `APR`, `LOCAL_VERIFIED`, and `UNANCHORED` before export.
