@@ -82,10 +82,10 @@ runs 16 deterministic acceptance checks, writes the Proof Bundle, and invokes th
 independent verifier. QA reviews the generated site but cannot issue
 `LOCAL_VERIFIED`.
 
-Fixture mode is deterministic, offline, and keyless. Live mode performs seven
-sequential OpenAI Responses API calls with strict Structured Outputs and
-`store=False`; it fails closed instead of replacing rejected live output with a
-fixture template. The complete live Mission Studio path was validated on
+Fixture mode is deterministic, offline, and keyless. Live mode runs seven
+sequential stages through the OpenAI Responses API with strict Structured Outputs,
+`store=False`, and up to three attempts per stage; it fails closed instead of
+replacing rejected live output with a fixture template. The complete live Mission Studio path was validated on
 2026-07-18 and returned `PASSED` / `LOCAL_VERIFIED` / `UNANCHORED`.
 
 Implementation and claim boundaries are documented in
