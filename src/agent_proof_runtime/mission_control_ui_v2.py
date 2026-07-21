@@ -335,6 +335,7 @@ _UI_V2_CSS = r"""
       .masthead { display: block; min-height: 316px; padding-top: 6px; }
       .masthead::before, .masthead::after { left: 72px; right: 12px; top: 150px; }
       .brand-lockup { height: 144px; margin-inline: auto; }
+      .brand-circuit { left: 70px; }
       .runtime-stack { height: 154px; }
       .runtime-openai-card { left: 0; top: 40px; transform: scale(.84); transform-origin: left center; }
       .runtime-gate { left: 30%; transform: scale(.78); }
