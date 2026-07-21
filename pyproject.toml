@@ -23,10 +23,14 @@ dependencies = []
 openai = ["openai>=2.0.0"]
 
 [project.scripts]
-apr = "agent_proof_runtime.cli:main"
+apr = "agent_proof_runtime.cli_v2:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
+include-package-data = true
+
+[tool.setuptools.package-data]
+agent_proof_runtime = ["data/*.json"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

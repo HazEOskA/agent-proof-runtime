@@ -29,11 +29,12 @@ def main() -> int:
     artifact_path.parent.mkdir(parents=True, exist_ok=False)
     content = "Agent Proof Runtime v0.1\nsandbox run completed\n"
     artifact_path.write_text(content, encoding="utf-8")
-    digest = "sha256:" + hashlib.sha256(content.encode("utf-8")).hexdigest()
+    written = artifact_path.read_bytes()
+    digest = "sha256:" + hashlib.sha256(written).hexdigest()
     _emit(
         "agent.file_written",
         {"path": artifact_path.as_posix()},
-        {"bytes_written": len(content.encode("utf-8")), "sha256": digest},
+        {"bytes_written": len(written), "sha256": digest},
         {"agent": "built-in-demo", "capability": "workspace.write"},
     )
 

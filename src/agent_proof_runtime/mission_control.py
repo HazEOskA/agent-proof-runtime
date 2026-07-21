@@ -28,6 +28,15 @@ from .mission import MissionSpec, MissionValidationError
 from .mission_loader import load_declared_mission
 from .mission_v1 import BuildWeekMission
 from .mission_control_ui import render_mission_control
+from .mission_studio import (
+    MissionStudioManager,
+    MissionStudioValidationError,
+)
+from .mission_studio_openai import (
+    DEFAULT_OPENAI_MODEL,
+    MissionStudioOpenAIError,
+    configured_openai_model,
+)
 from .build_week_runtime import ArtifactPolicyError, run_build_week_mission
 from .providers import ProviderError
 from .runtime import RunDirectoryExists, run_mission
@@ -312,14 +321,23 @@ class MissionControl:
         validate_bind(self.config)
         self.csrf_token = secrets.token_urlsafe(32)
         self._run_lock = threading.Lock()
+        self._studio = MissionStudioManager(
+            runs_dir=self.config.runs_dir,
+            run_lock=self._run_lock,
+        )
 
     def state(self) -> dict[str, Any]:
+        try:
+            studio_openai_model = configured_openai_model()
+        except MissionStudioOpenAIError:
+            studio_openai_model = DEFAULT_OPENAI_MODEL
         return {
             "service": {
                 "name": "Agent Proof Runtime Mission Control",
                 "version": __version__,
                 "trust_boundary": "local-operator",
                 "openai_configured": bool(os.environ.get("OPENAI_API_KEY")),
+                "mission_studio_openai_model": studio_openai_model,
             },
             "doctor": _doctor_summary(),
             "missions": discover_missions(self.config.missions_dir),
@@ -362,6 +380,24 @@ class MissionControl:
     def verify(self, run_name: str) -> dict[str, Any]:
         run_dir = _run_directory(self.config.runs_dir, run_name)
         return _read_run(run_dir)
+
+    def start_studio(self, value: Any) -> dict[str, Any]:
+        try:
+            return self._studio.start(value)
+        except MissionStudioValidationError as error:
+            raise MissionControlError(str(error)) from error
+        except RuntimeError as error:
+            raise MissionControlError(str(error), HTTPStatus.CONFLICT) from error
+
+    def studio(self, session_id: str) -> dict[str, Any]:
+        try:
+            return self._studio.get(session_id)
+        except ValueError as error:
+            raise MissionControlError(str(error)) from error
+        except KeyError as error:
+            raise MissionControlError(
+                "Mission Studio session does not exist", HTTPStatus.NOT_FOUND
+            ) from error
 
     def detail(self, run_name: str) -> dict[str, Any]:
         run_dir = _run_directory(self.config.runs_dir, run_name)
@@ -422,8 +458,9 @@ def _handler_factory(control: MissionControl) -> type[BaseHTTPRequestHandler]:
                 )
             else:
                 content_policy = (
-                    "default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; "
-                    "img-src data:; base-uri 'none'; frame-ancestors 'none'; sandbox"
+                    "default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'none'; "
+                    "img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'; "
+                    "sandbox allow-same-origin"
                 )
             self.send_header("Content-Security-Policy", content_policy)
             self.end_headers()
@@ -510,6 +547,13 @@ def _handler_factory(control: MissionControl) -> type[BaseHTTPRequestHandler]:
                     )
                 elif path == "/api/state":
                     self._send_json({"ok": True, **control.state()})
+                elif path.startswith("/api/studio/"):
+                    parts = PurePosixPath(path).parts
+                    if len(parts) != 4 or parts[:3] != ("/", "api", "studio"):
+                        raise MissionControlError("route not found", HTTPStatus.NOT_FOUND)
+                    self._send_json(
+                        {"ok": True, "session": control.studio(parts[3])}
+                    )
                 elif path.startswith("/api/runs/"):
                     parts = PurePosixPath(path).parts
                     if len(parts) != 4 or parts[:3] != ("/", "api", "runs"):
@@ -540,6 +584,11 @@ def _handler_factory(control: MissionControl) -> type[BaseHTTPRequestHandler]:
                         raise MissionControlError("expected only mission_path")
                     run = control.run(value["mission_path"])
                     self._send_json({"ok": True, "run": run}, HTTPStatus.CREATED)
+                elif path == "/api/studio/start":
+                    session = control.start_studio(value)
+                    self._send_json(
+                        {"ok": True, "session": session}, HTTPStatus.CREATED
+                    )
                 elif path == "/api/verify":
                     if set(value) != {"run_id"}:
                         raise MissionControlError("expected only run_id")

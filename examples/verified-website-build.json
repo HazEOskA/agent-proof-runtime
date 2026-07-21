@@ -1,0 +1,73 @@
+{
+  "schema_version": "apr.mission.v1",
+  "mission_id": "verified-website-build",
+  "title": "Verified website build",
+  "goal": "Materialize exactly four deterministic static website artifacts supplied by the fixed Mission Studio fixture and verify their recorded evidence.",
+  "provider": "fixture",
+  "model": "mission-studio-fixture-v1",
+  "artifact_contract": {
+    "artifacts": [
+      {
+        "path": "site/index.html",
+        "media_type": "text/html",
+        "max_bytes": 24576,
+        "required": true,
+        "fixture_content": "<!doctype html><html lang=\"en\" data-apr-build=\"verified-website-build-v1\"><body><section data-apr-section=\"hero\"></section><section data-apr-section=\"features\"></section><section data-apr-section=\"cta\"></section></body></html>\n"
+      },
+      {
+        "path": "site/styles.css",
+        "media_type": "text/css",
+        "max_bytes": 16384,
+        "required": true,
+        "fixture_content": "body{background:#050609;color:#f4f7f8}\n"
+      },
+      {
+        "path": "site/data.json",
+        "media_type": "application/json",
+        "max_bytes": 16384,
+        "required": true,
+        "fixture_content": "{\"schema_version\":\"apr.verified-website-build.data.v1\"}\n"
+      },
+      {
+        "path": "studio/trace.json",
+        "media_type": "application/json",
+        "max_bytes": 32768,
+        "required": true,
+        "fixture_content": "{\"schema_version\":\"apr.mission-studio.trace.v1\",\"mission_type\":\"verified_website_build\",\"brief_hash\":\"fixture\",\"agent_order\":[\"planner\",\"research\",\"builder\",\"qa\"],\"stages\":[],\"handoffs\":[],\"artifact_contract\":{\"paths\":[],\"file_count\":4}}\n"
+      }
+    ],
+    "max_files": 4,
+    "max_total_bytes": 90112,
+    "allowed_media_types": [
+      "text/html",
+      "text/css",
+      "application/json"
+    ]
+  },
+  "limits": {
+    "provider_timeout_seconds": 30,
+    "max_output_tokens": 4096
+  },
+  "acceptance_checks": [
+    {"id": "html_exists", "type": "file_exists", "path": "site/index.html"},
+    {"id": "css_exists", "type": "file_exists", "path": "site/styles.css"},
+    {"id": "data_exists", "type": "file_exists", "path": "site/data.json"},
+    {"id": "trace_exists", "type": "file_exists", "path": "studio/trace.json"},
+    {"id": "exact_file_count", "type": "file_count", "minimum": 4, "maximum": 4},
+    {"id": "data_json_valid", "type": "json_valid", "path": "site/data.json"},
+    {"id": "trace_json_valid", "type": "json_valid", "path": "studio/trace.json"},
+    {"id": "trace_keys_present", "type": "json_required_keys", "path": "studio/trace.json", "keys": ["schema_version", "mission_type", "brief_hash", "agent_order", "stages", "handoffs", "artifact_contract"]},
+    {"id": "build_marker_present", "type": "contains_text", "path": "site/index.html", "text": "data-apr-build=\"verified-website-build-v1\""},
+    {"id": "hero_marker_present", "type": "contains_text", "path": "site/index.html", "text": "data-apr-section=\"hero\""},
+    {"id": "features_marker_present", "type": "contains_text", "path": "site/index.html", "text": "data-apr-section=\"features\""},
+    {"id": "cta_marker_present", "type": "contains_text", "path": "site/index.html", "text": "data-apr-section=\"cta\""},
+    {"id": "html_size_bounded", "type": "maximum_size", "path": "site/index.html", "max_bytes": 24576},
+    {"id": "css_size_bounded", "type": "maximum_size", "path": "site/styles.css", "max_bytes": 16384},
+    {"id": "data_size_bounded", "type": "maximum_size", "path": "site/data.json", "max_bytes": 16384},
+    {"id": "trace_size_bounded", "type": "maximum_size", "path": "studio/trace.json", "max_bytes": 32768}
+  ],
+  "analysis_policy": {
+    "persist_reasoning": false,
+    "allow_reasoning_summary": false
+  }
+}
