@@ -1,0 +1,116 @@
+name: Verify reduced-motion animation
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install APR
+        run: python -m pip install -e .
+
+      - name: Start Mission Control
+        run: |
+          nohup apr mission-control --host 127.0.0.1 --port 8080 > /tmp/apr-server.log 2>&1 &
+          for attempt in $(seq 1 40); do
+            curl --fail --silent http://127.0.0.1:8080/ >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/apr-server.log
+          exit 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright
+        run: |
+          npm init -y
+          npm install playwright@1.54.1
+          npx playwright install --with-deps chromium
+
+      - name: Verify local and Railway desktop animation
+        env:
+          LIVE_URL: https://agent-proof-runtime-production.up.railway.app/
+        run: |
+          node <<'NODE'
+          const { chromium } = require('playwright');
+
+          async function readAnimations(page) {
+            return page.evaluate(() => ({
+              left: getComputedStyle(document.querySelector('.brand-source')).left,
+              items: document.getAnimations({ subtree: true }).map((animation) => ({
+                name: animation.animationName,
+                currentTime: Number(animation.currentTime || 0),
+                playState: animation.playState,
+              })),
+            }));
+          }
+
+          async function assertMoving(page, label) {
+            await page.waitForSelector('.brand-source', { timeout: 60000 });
+            await page.emulateMedia({ reducedMotion: 'reduce' });
+            const first = await readAnimations(page);
+            await page.waitForTimeout(450);
+            const second = await readAnimations(page);
+            for (const name of ['apr-top-bus', 'apr-main-flow-down', 'trace-flow']) {
+              const a = first.items.find((item) => item.name === name);
+              const b = second.items.find((item) => item.name === name);
+              if (!a || !b) throw new Error(`${label}: missing ${name}`);
+              if (b.playState !== 'running') throw new Error(`${label}: ${name} is ${b.playState}`);
+              if (!(b.currentTime > a.currentTime)) {
+                throw new Error(`${label}: ${name} did not advance (${a.currentTime} -> ${b.currentTime})`);
+              }
+            }
+            if (second.left !== '-43px') throw new Error(`${label}: mask left is ${second.left}`);
+            console.log(label, JSON.stringify(second));
+          }
+
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+
+            await page.goto('http://127.0.0.1:8080/', { waitUntil: 'networkidle', timeout: 120000 });
+            await assertMoving(page, 'local');
+
+            let liveReady = false;
+            for (let attempt = 1; attempt <= 30; attempt++) {
+              await page.goto(process.env.LIVE_URL, { waitUntil: 'networkidle', timeout: 120000 });
+              await page.emulateMedia({ reducedMotion: 'reduce' });
+              const state = await readAnimations(page);
+              const names = new Set(state.items.map((item) => item.name));
+              if (state.left === '-43px' && names.has('apr-main-flow-down')) {
+                liveReady = true;
+                break;
+              }
+              console.log(`Railway not current yet (${attempt}/30)`);
+              await page.waitForTimeout(10000);
+            }
+            if (!liveReady) throw new Error('Railway did not deploy the animation fix in time');
+            await assertMoving(page, 'railway');
+            await page.screenshot({ path: 'verified-desktop-animation.png', fullPage: false });
+            await browser.close();
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-desktop-animation
+          path: verified-desktop-animation.png
+          if-no-files-found: error
+          retention-days: 1
