@@ -513,7 +513,7 @@ _UI_V2_CSS = r"""
         position: absolute;
         z-index: 1;
         top: 124px;
-        right: -84px;
+        right: -95px;
         width: 3px;
         height: 98px;
         pointer-events: none;
@@ -555,7 +555,7 @@ _UI_V2_CSS = r"""
       }
       .hero::after,
       .quick-nav::after,
-      #missions-section::before { right: 8%; }
+      #missions-section::before { right: 13%; }
       #missions-section { margin-top: 22px; }
     }
 
