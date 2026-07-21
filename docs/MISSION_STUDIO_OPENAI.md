@@ -100,23 +100,24 @@ Railway service secret. Optionally configure `APR_OPENAI_MODEL`. Do not place ei
 value in the Dockerfile, `railway.json`, source code, test fixtures, or committed env
 files.
 
-No Railway deployment is performed as part of this implementation.
+## Controlled live validation result
 
-## Controlled live smoke procedure
+The full seven-stage Mission Studio procedure completed successfully on 2026-07-18.
+The validated path reached QA and the existing APR runtime without a fixture fallback,
+materialized the exact four declared artifacts, passed all sixteen deterministic
+acceptance checks, produced a Proof Bundle, and returned:
 
-Run this only after mock tests and an operator-approved server secret are in place:
+```text
+Mission: PASSED
+Proof:   LOCAL_VERIFIED
+Anchor:  UNANCHORED
+```
 
-1. Install `.[openai]` and start Mission Control locally.
-2. Confirm the UI reports the server key as ready without displaying it.
-3. Select **LIVE GPT-5.6**, enter a constrained website brief, and start one mission.
-4. Confirm seven backend API calls and the exact 26 Mission Studio events.
-5. Confirm `apr.contract_enforced`, four artifacts, 16 passing acceptance checks,
-   `PASSED`, `LOCAL_VERIFIED`, and `UNANCHORED`.
-6. Run the existing artifact and trace tamper checks and confirm the original remains
-   preserved and independently verifiable.
-7. Scan persisted files for secrets, environment values, absolute paths, raw model
-   responses, hidden reasoning, and stack traces.
+The persisted trace contained safe stage metadata and hashes without the API key,
+raw model responses, hidden reasoning, environment dumps, or absolute host paths.
+Disposable artifact and trace mutations were detected by the existing independent
+verifier while the original run remained preserved and `LOCAL_VERIFIED`.
 
-Until that real seven-stage procedure succeeds, the status remains **IMPLEMENTED BUT
-NOT LIVE-VALIDATED**. Validation of the older single-call OpenAI artifact provider
-does not count as live validation of this pipeline.
+This validates the seven-stage provider integration and evidence handoff. It does not
+upgrade the trust boundary: external anchoring, hostile-code isolation, and semantic
+truth verification remain outside the current claim.
