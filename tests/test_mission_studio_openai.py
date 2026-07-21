@@ -1,0 +1,1172 @@
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import sys
+import tempfile
+import threading
+import time
+import unittest
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
+
+from agent_proof_runtime.mission_studio import MissionStudioManager
+from agent_proof_runtime.mission_studio_openai import (
+    ARTIFACT_LIMITS,
+    GENERATION_TARGET_BYTES,
+    OPENAI_TIMEOUT_SECONDS,
+    STAGE_MAX_OUTPUT_TOKENS,
+    STAGE_TIMEOUT_SECONDS,
+    MissionStudioOpenAIError,
+    MissionStudioOpenAIProvider,
+    _validate_live_quality,
+)
+from agent_proof_runtime.mission_control_ui import render_mission_control
+from agent_proof_runtime.tamper_lab import run_fingerprint
+from agent_proof_runtime.validator import verify_bundle
+
+
+VALID = {
+    "mission_type": "verified_website_build",
+    "brief": "Create a polished dark landing page for an AI security company.",
+}
+EXPECTED_EVENTS = [
+    "studio.mission_accepted",
+    "agent.planner.started",
+    "agent.planner.completed",
+    "handoff.planner_to_research",
+    "agent.research.started",
+    "agent.research.completed",
+    "handoff.research_to_content",
+    "agent.content.started",
+    "agent.content.completed",
+    "handoff.content_to_html_builder",
+    "agent.html_builder.started",
+    "agent.html_builder.completed",
+    "handoff.html_builder_to_css_builder",
+    "agent.css_builder.started",
+    "agent.css_builder.completed",
+    "handoff.css_builder_to_data_builder",
+    "agent.data_builder.started",
+    "agent.data_builder.completed",
+    "handoff.data_builder_to_qa",
+    "agent.qa.started",
+    "agent.qa.completed",
+    "handoff.qa_to_apr",
+    "apr.run.started",
+    "apr.contract_enforced",
+    "apr.run.completed",
+    "verifier.completed",
+]
+
+
+def website_artifacts() -> list[dict[str, str]]:
+    return [
+        {
+            "path": "site/index.html",
+            "media_type": "text/html",
+            "content": """<!doctype html>
+<html lang="en" data-apr-build="verified-website-build-v1">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Aegis AI</title><link rel="stylesheet" href="styles.css"></head>
+<body><main><section data-apr-section="hero"><h1>Secure every AI workflow</h1><a href="#contact">Start</a></section><section data-apr-section="features"><h2>Controls</h2><article><h3>Constrained</h3></article><article><h3>Recorded</h3></article><article><h3>Verified</h3></article></section><section id="contact" data-apr-section="cta"><h2>Build with evidence</h2></section></main></body></html>
+""",
+        },
+        {
+            "path": "site/styles.css",
+            "media_type": "text/css",
+            "content": "body{margin:0;background:#050609;color:#f4f7f8;font:16px Arial,sans-serif}main{width:min(1100px,calc(100% - 32px));margin:auto}section{padding:64px 0}article{padding:24px;border:1px solid #345}@media(max-width:700px){section{padding:40px 0}}\n",
+        },
+        {
+            "path": "site/data.json",
+            "media_type": "application/json",
+            "content": json.dumps(
+                {
+                    "schema_version": "apr.verified-website-build.data.v1",
+                    "product": "Aegis AI",
+                    "features": ["Constrained", "Recorded", "Verified"],
+                },
+                separators=(",", ":"),
+            )
+            + "\n",
+        },
+    ]
+
+
+def stage_outputs() -> list[dict]:
+    artifacts = website_artifacts()
+    artifacts[1]["content"] += (
+        ":focus-visible{outline:3px solid #7ff;outline-offset:3px}\n"
+    )
+    return [
+        {
+            "summary": "Planned the fixed static website delivery.",
+            "site_type": "B2B landing page",
+            "target_audience": "AI security teams",
+            "primary_goal": "Generate qualified security reviews",
+            "required_sections": ["hero", "features", "cta"],
+            "content_priorities": ["clarity", "trust", "conversion"],
+            "visual_priorities": ["dark", "precise", "responsive"],
+            "constraints": ["static", "self-contained", "no JavaScript"],
+        },
+        {
+            "summary": "Prepared model-based audience and design analysis.",
+            "audience_insights": ["Needs technical credibility"],
+            "visual_direction": "Dark editorial security interface",
+            "typography_direction": "System sans-serif with strong hierarchy",
+            "layout_direction": "Focused single-page narrative",
+            "content_strategy": ["Lead with outcome", "Support with controls"],
+            "accessibility_requirements": ["Semantic headings", "Visible focus"],
+            "usability_requirements": ["Clear CTA", "Readable mobile layout"],
+            "risks_to_avoid": ["Unsupported claims", "External dependencies"],
+        },
+        {
+            "summary": "Structured the complete website content model.",
+            "brand_name": "Aegis AI",
+            "eyebrow": "VERIFIED AI SECURITY",
+            "headline": "Secure every AI workflow",
+            "description": "Evidence-backed controls for autonomous AI delivery.",
+            "primary_cta": "Request a security review",
+            "secondary_cta": "Explore the controls",
+            "feature_titles": ["Constrained", "Recorded", "Verified"],
+            "feature_descriptions": [
+                "Fixed contracts bound every artifact.",
+                "Evidence records every handoff.",
+                "Independent checks verify the result.",
+            ],
+            "trust_points": ["Static", "Local", "Verifiable"],
+        },
+        {
+            "summary": "Built the semantic HTML artifact.",
+            "artifact": artifacts[0],
+        },
+        {
+            "summary": "Built the responsive CSS artifact.",
+            "artifact": artifacts[1],
+        },
+        {
+            "summary": "Built the structured data artifact.",
+            "artifact": artifacts[2],
+        },
+        {
+            "summary": "Reviewed and approved the assembled website.",
+            "approved": True,
+            "issues": [],
+            "corrections_made": [],
+        },
+    ]
+
+
+class FakeResponses:
+    def __init__(self, outputs: list[object]) -> None:
+        self.outputs = list(outputs)
+        self.calls: list[dict] = []
+
+    def create(self, **kwargs: object) -> object:
+        self.calls.append(kwargs)
+        if not self.outputs:
+            raise AssertionError("unexpected extra OpenAI call")
+        output = self.outputs.pop(0)
+        if isinstance(output, Exception):
+            raise output
+        if isinstance(output, SimpleNamespace):
+            return output
+        index = len(self.calls)
+        return SimpleNamespace(
+            id=f"resp_mock_stage_{index}",
+            model="gpt-5.6-mocked",
+            output_text=(output if isinstance(output, str) else json.dumps(output)),
+            usage=SimpleNamespace(
+                input_tokens=100 + index,
+                output_tokens=50 + index,
+                total_tokens=150 + index * 2,
+            ),
+            hidden_reasoning="must-never-persist",
+            raw_sdk_response="must-never-persist",
+            status="completed",
+            incomplete_details=None,
+            error=None,
+        )
+
+
+def sdk_error(
+    exception_class: str,
+    *,
+    status: int | None = None,
+    request_id: str = "req_safe_mock",
+    code: str | None = None,
+    message: str = "raw secret exception body must never persist",
+) -> Exception:
+    error_type = type(exception_class, (RuntimeError,), {})
+    error = error_type(message)
+    error.status_code = status
+    error.request_id = request_id
+    error.code = code
+    return error
+
+
+def fake_client(outputs: list[object] | None = None) -> tuple[object, FakeResponses]:
+    responses = FakeResponses(outputs or stage_outputs())
+    return SimpleNamespace(responses=responses), responses
+
+
+def sdk_response(
+    *,
+    status: str,
+    reason: str | None = None,
+    output_text: str = "raw output must never persist",
+    error_code: str | None = None,
+    error_message: str = "sk-secret C:\\private raw SDK response",
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        id="resp_safe_builder_incomplete",
+        model="gpt-5.6-resolved",
+        status=status,
+        incomplete_details=(
+            SimpleNamespace(reason=reason) if reason is not None else None
+        ),
+        error=(
+            SimpleNamespace(code=error_code, message=error_message)
+            if error_code is not None
+            else None
+        ),
+        output_text=output_text,
+        usage=SimpleNamespace(
+            input_tokens=321,
+            output_tokens=4096,
+            total_tokens=4417,
+        ),
+        hidden_reasoning="must-never-persist",
+        raw_sdk_response="must-never-persist",
+    )
+
+
+def wait_for_session(manager: MissionStudioManager, created: dict) -> dict:
+    session = created
+    deadline = time.monotonic() + 8
+    while session["state"] not in {"completed", "failed"}:
+        if time.monotonic() >= deadline:
+            raise AssertionError("Mission Studio session timed out")
+        time.sleep(0.01)
+        session = manager.get(created["session_id"])
+    return session
+
+
+class MissionStudioOpenAITests(unittest.TestCase):
+    def _manager(self, root: Path, client: object | None) -> MissionStudioManager:
+        return MissionStudioManager(
+            runs_dir=root / "runs",
+            run_lock=threading.Lock(),
+            stage_delay_seconds=0,
+            openai_client=client,
+        )
+
+    def test_fixture_modes_remain_deterministic_and_emit_seven_stage_events(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manager_one = self._manager(root / "one", None)
+            manager_two = self._manager(root / "two", None)
+            first = wait_for_session(manager_one, manager_one.start(VALID))
+            second = wait_for_session(
+                manager_two, manager_two.start({**VALID, "provider": "fixture"})
+            )
+            self.assertEqual(first["provider"], "fixture")
+            self.assertEqual(second["provider"], "fixture")
+            self.assertEqual(
+                [event["type"] for event in first["events"]], EXPECTED_EVENTS
+            )
+            self.assertEqual(
+                [event["type"] for event in second["events"]], EXPECTED_EVENTS
+            )
+            self.assertEqual(
+                [agent["output_hash"] for agent in first["agents"]],
+                [agent["output_hash"] for agent in second["agents"]],
+            )
+
+    def test_mocked_seven_stage_success_reaches_existing_apr_proof_path(self) -> None:
+        marker = "sk-test-live-pipeline-must-never-persist"
+        client, responses = fake_client()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manager = self._manager(root, client)
+            with patch.dict(
+                os.environ,
+                {"OPENAI_API_KEY": marker, "APR_OPENAI_MODEL": "gpt-5.6"},
+                clear=True,
+            ):
+                session = wait_for_session(
+                    manager,
+                    manager.start({**VALID, "provider": "openai"}),
+                )
+
+            self.assertEqual(len(responses.calls), 7)
+            self.assertEqual(
+                [call["text"]["format"]["name"] for call in responses.calls],
+                [
+                    "apr_mission_studio_planner_v1",
+                    "apr_mission_studio_research_v1",
+                    "apr_mission_studio_content_v1",
+                    "apr_mission_studio_html_builder_v1",
+                    "apr_mission_studio_css_builder_v1",
+                    "apr_mission_studio_data_builder_v1",
+                    "apr_mission_studio_qa_v1",
+                ],
+            )
+            for call in responses.calls:
+                self.assertEqual(call["model"], "gpt-5.6")
+                self.assertIs(call["store"], False)
+                self.assertEqual(call["tools"], [])
+                self.assertEqual(call["text"]["format"]["type"], "json_schema")
+                self.assertIs(call["text"]["format"]["strict"], True)
+                self.assertNotIn("reasoning", call)
+            self.assertEqual(
+                [call["max_output_tokens"] for call in responses.calls],
+                [4096, 4096, 8192, 16384, 8192, 8192, 4096],
+            )
+            self.assertEqual(
+                [call["timeout"] for call in responses.calls],
+                [120, 120, 180, 300, 180, 180, 180],
+            )
+            self.assertEqual(
+                STAGE_MAX_OUTPUT_TOKENS,
+                {
+                    "planner": 4096,
+                    "research": 4096,
+                    "content": 8192,
+                    "html_builder": 16384,
+                    "css_builder": 8192,
+                    "data_builder": 8192,
+                    "qa": 4096,
+                },
+            )
+            research_input = json.loads(responses.calls[1]["input"])
+            content_input = json.loads(responses.calls[2]["input"])
+            html_input = json.loads(responses.calls[3]["input"])
+            css_input = json.loads(responses.calls[4]["input"])
+            data_input = json.loads(responses.calls[5]["input"])
+            qa_input = json.loads(responses.calls[6]["input"])
+            self.assertIn("planner", research_input)
+            self.assertIn("research", content_input)
+            self.assertIn("content", html_input)
+            self.assertEqual(css_input["html_builder"]["artifact"]["path"], "site/index.html")
+            self.assertIn("content", data_input)
+            self.assertEqual(qa_input["css_builder"]["artifact"]["path"], "site/styles.css")
+            self.assertEqual(qa_input["data_builder"]["artifact"]["path"], "site/data.json")
+
+            self.assertEqual(
+                [event["type"] for event in session["events"]], EXPECTED_EVENTS
+            )
+            self.assertEqual(session["provider"], "openai")
+            self.assertEqual(session["mission_status"], "PASSED")
+            self.assertEqual(session["proof_status"], "LOCAL_VERIFIED")
+            self.assertEqual(session["anchor_status"], "UNANCHORED")
+            run_dir = root / "runs" / session["apr_run_id"]
+            bundle_path = run_dir / "proof-bundle.json"
+            bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
+            self.assertEqual(bundle["provider"]["provider"], "openai")
+            self.assertEqual(bundle["acceptance"]["status"], "PASSED")
+            self.assertEqual(
+                sum(check["passed"] for check in bundle["acceptance"]["checks"]), 16
+            )
+            self.assertEqual(len(bundle["artifacts"]), 4)
+            self.assertEqual(
+                {item["path"] for item in bundle["artifacts"]},
+                {
+                    "artifact/site/index.html",
+                    "artifact/site/styles.css",
+                    "artifact/site/data.json",
+                    "artifact/studio/trace.json",
+                },
+            )
+            trace = json.loads(
+                (run_dir / "artifact" / "studio" / "trace.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(trace["provider"], "openai")
+            self.assertEqual(len(trace["stages"]), 7)
+            self.assertEqual(
+                [stage["response_id"] for stage in trace["stages"]],
+                [f"resp_mock_stage_{index}" for index in range(1, 8)],
+            )
+            self.assertEqual(
+                [stage["token_usage"] for stage in trace["stages"]],
+                [
+                    {
+                        "input_tokens": 100 + index,
+                        "output_tokens": 50 + index,
+                        "total_tokens": 150 + index * 2,
+                    }
+                    for index in range(1, 8)
+                ],
+            )
+            self.assertEqual(len(trace["handoffs"]), 7)
+            self.assertEqual(len(trace["artifacts"]), 3)
+            for event in session["events"]:
+                if event["type"] in {
+                    "agent.html_builder.completed",
+                    "agent.css_builder.completed",
+                    "agent.data_builder.completed",
+                    "agent.qa.completed",
+                }:
+                    self.assertNotIn("artifact", event["structured_output"])
+            serialized_session = json.dumps(session)
+            self.assertNotIn("Generate qualified security reviews", serialized_session)
+            self.assertNotIn("Needs technical credibility", serialized_session)
+            self.assertIn(
+                ":focus-visible",
+                (run_dir / "artifact" / "site" / "styles.css").read_text(
+                    encoding="utf-8"
+                ),
+            )
+
+            before = run_fingerprint(run_dir)
+            for relative in ("site/index.html", "studio/trace.json"):
+                copy = root / (relative.replace("/", "-") + "-tampered")
+                shutil.copytree(run_dir, copy)
+                with (copy / "artifact" / Path(relative)).open("ab") as handle:
+                    handle.write(b"\nTAMPERED\n")
+                self.assertEqual(
+                    verify_bundle(copy / "proof-bundle.json").status, "FAILED"
+                )
+            self.assertEqual(run_fingerprint(run_dir), before)
+            self.assertEqual(verify_bundle(bundle_path).status, "LOCAL_VERIFIED")
+
+            persisted = "\n".join(
+                path.read_text(encoding="utf-8", errors="replace")
+                for path in sorted(run_dir.rglob("*"))
+                if path.is_file()
+            )
+            self.assertNotIn(marker, persisted)
+            self.assertNotIn("must-never-persist", persisted)
+            self.assertNotIn("hidden_reasoning", persisted)
+            self.assertNotIn("raw_sdk_response", persisted)
+            self.assertNotIn("OPENAI_API_KEY=", persisted)
+            self.assertNotIn("environment variables", persisted.casefold())
+            self.assertNotIn(str(root.resolve()), persisted)
+            self.assertNotIn("Traceback", persisted)
+
+    def test_split_artifact_agents_use_bounded_stage_budgets(self) -> None:
+        outputs = stage_outputs()
+        client, responses = fake_client(outputs[:6])
+        provider = MissionStudioOpenAIProvider(
+            SimpleNamespace(**{**VALID, "provider": "openai"}), client=client
+        )
+        for stage_id in (
+            "planner",
+            "research",
+            "content",
+            "html_builder",
+            "css_builder",
+            "data_builder",
+        ):
+            result = provider.run_stage(stage_id)
+            self.assertEqual(result["status"], "completed")
+        self.assertEqual(
+            [responses.calls[index]["max_output_tokens"] for index in (3, 4, 5)],
+            [16384, 8192, 8192],
+        )
+        self.assertEqual(
+            [provider._outputs[stage]["artifact"]["path"] for stage in (
+                "html_builder",
+                "css_builder",
+                "data_builder",
+            )],
+            ["site/index.html", "site/styles.css", "site/data.json"],
+        )
+
+    def test_scroll_behavior_is_safe_but_legacy_behavior_property_is_rejected(self) -> None:
+        outputs = stage_outputs()
+        safe_css = {
+            **outputs[4],
+            "artifact": {
+                **outputs[4]["artifact"],
+                "content": outputs[4]["artifact"]["content"]
+                + "\nhtml { scroll-behavior: smooth; }\n",
+            },
+        }
+        client, _ = fake_client([*outputs[:4], safe_css])
+        provider = MissionStudioOpenAIProvider(
+            SimpleNamespace(**{**VALID, "provider": "openai"}), client=client
+        )
+        for stage_id in ("planner", "research", "content", "html_builder"):
+            provider.run_stage(stage_id)
+        self.assertEqual(provider.run_stage("css_builder")["status"], "completed")
+
+        unsafe_css = {
+            **outputs[4],
+            "artifact": {
+                **outputs[4]["artifact"],
+                "content": outputs[4]["artifact"]["content"]
+                + "\nmain { behavior: none; }\n",
+            },
+        }
+        client, _ = fake_client([*outputs[:4], unsafe_css, unsafe_css, unsafe_css])
+        provider = MissionStudioOpenAIProvider(
+            SimpleNamespace(**{**VALID, "provider": "openai"}), client=client
+        )
+        for stage_id in ("planner", "research", "content", "html_builder"):
+            provider.run_stage(stage_id)
+        with patch("agent_proof_runtime.mission_studio_openai._retry_pause"):
+            with self.assertRaises(MissionStudioOpenAIError) as raised:
+                provider.run_stage("css_builder")
+        self.assertEqual(raised.exception.category, "stage_contract_rejected")
+        self.assertEqual(raised.exception.contract_reason, "css_policy")
+
+    def test_builder_and_qa_generation_caps_stay_below_hard_artifact_limits(self) -> None:
+        self.assertEqual(
+            GENERATION_TARGET_BYTES,
+            {
+                "site/index.html": 14_000,
+                "site/styles.css": 10_000,
+                "site/data.json": 4_000,
+            },
+        )
+        for path, target in GENERATION_TARGET_BYTES.items():
+            self.assertLess(target, ARTIFACT_LIMITS[path])
+        client, responses = fake_client()
+        provider = MissionStudioOpenAIProvider(
+            SimpleNamespace(**{**VALID, "provider": "openai"}), client=client
+        )
+        for stage_id in (
+            "planner",
+            "research",
+            "content",
+            "html_builder",
+            "css_builder",
+            "data_builder",
+            "qa",
+        ):
+            provider.run_stage(stage_id)
+        expected_caps = {3: "14,000", 4: "10,000", 5: "4,000"}
+        for stage_index, cap in expected_caps.items():
+            self.assertIn(cap, responses.calls[stage_index]["instructions"])
+        self.assertIn("never repeat", responses.calls[6]["instructions"])
+
+    def test_legacy_response_without_status_still_parses(self) -> None:
+        output = stage_outputs()[0]
+        response = sdk_response(status="completed", output_text=json.dumps(output))
+        del response.status
+        client, responses = fake_client([response])
+        provider = MissionStudioOpenAIProvider(
+            SimpleNamespace(**{**VALID, "provider": "openai"}), client=client
+        )
+        result = provider.run_stage("planner")
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(len(responses.calls), 1)
+
+    def test_html_builder_incomplete_responses_have_safe_specific_categories(self) -> None:
+        cases = (
+            ("max_output_tokens", "structured_output_truncated"),
+            ("max_tokens", "structured_output_truncated"),
+            ("content_filter", "structured_output_refused"),
+            ("other_stop", "structured_output_incomplete"),
+        )
+        for reason, category in cases:
+            with self.subTest(reason=reason):
+                outputs = stage_outputs()
+                response = sdk_response(status="incomplete", reason=reason)
+                response_count = 1 if category == "structured_output_refused" else 3
+                client, responses = fake_client(
+                    [*outputs[:3], *([response] * response_count)]
+                )
+                provider = MissionStudioOpenAIProvider(
+                    SimpleNamespace(**{**VALID, "provider": "openai"}), client=client
+                )
+                for stage_id in ("planner", "research", "content"):
+                    provider.run_stage(stage_id)
+                with patch(
+                    "agent_proof_runtime.mission_studio_openai._retry_pause"
+                ) as retry_sleep:
+                    with self.assertRaises(MissionStudioOpenAIError) as raised:
+                        provider.run_stage("html_builder")
+                self.assertEqual(raised.exception.category, category)
+                self.assertEqual(len(responses.calls), 3 + response_count)
+                self.assertEqual(retry_sleep.call_count, response_count - 1)
+                self.assertEqual(
+                    raised.exception.safe_diagnostics(),
+                    {
+                        "category": category,
+                        "stage": "html_builder",
+                        "attempt_count": response_count,
+                        "response_id": "resp_safe_builder_incomplete",
+                        "resolved_model": "gpt-5.6-resolved",
+                        "incomplete_reason": reason,
+                        "token_usage": {
+                            "input_tokens": 321,
+                            "output_tokens": 4096,
+                            "total_tokens": 4417,
+                        },
+                    },
+                )
+                serialized = json.dumps(raised.exception.safe_diagnostics())
+                self.assertNotIn(response.output_text, serialized)
+                self.assertNotIn("hidden_reasoning", serialized)
+                self.assertNotIn("raw_sdk_response", serialized)
+
+    def test_incomplete_html_builder_persists_no_raw_response_or_error_text(self) -> None:
+        outputs = stage_outputs()
+        response = sdk_response(
+            status="incomplete",
+            reason="max_output_tokens",
+            output_text="partial secret builder output must never persist",
+            error_code="server_error",
+        )
+        client, responses = fake_client([*outputs[:3], response, response, response])
+        with tempfile.TemporaryDirectory() as temporary:
+            manager = self._manager(Path(temporary), client)
+            with self.assertLogs(
+                "agent_proof_runtime.mission_studio", level="WARNING"
+            ) as captured:
+                session = wait_for_session(
+                    manager,
+                    manager.start({**VALID, "provider": "openai"}),
+                )
+        self.assertEqual(session["state"], "failed")
+        self.assertEqual(session["failure_category"], "structured_output_truncated")
+        self.assertEqual(len(responses.calls), 6)
+        serialized = json.dumps({"session": session, "logs": captured.output})
+        for unsafe in (
+            response.output_text,
+            response.error.message,
+            response.hidden_reasoning,
+            response.raw_sdk_response,
+            "sk-secret",
+            "C:\\\\private",
+        ):
+            self.assertNotIn(unsafe, serialized)
+
+    def test_failed_response_reads_only_safe_error_code(self) -> None:
+        response = sdk_response(
+            status="failed",
+            error_code="server_error",
+            output_text="raw failed response",
+        )
+        client, responses = fake_client([response])
+        provider = MissionStudioOpenAIProvider(
+            SimpleNamespace(**{**VALID, "provider": "openai"}), client=client
+        )
+        with self.assertRaises(MissionStudioOpenAIError) as raised:
+            provider.run_stage("planner")
+        diagnostics = raised.exception.safe_diagnostics()
+        self.assertEqual(raised.exception.category, "openai_request_failed")
+        self.assertEqual(diagnostics["openai_error_code"], "server_error")
+        self.assertEqual(len(responses.calls), 1)
+        serialized = json.dumps(diagnostics)
+        self.assertNotIn(response.output_text, serialized)
+        self.assertNotIn(response.error.message, serialized)
+
+    def test_research_transient_failures_retry_then_succeed(self) -> None:
+        transient_errors = (
+            sdk_error("APITimeoutError", code="timeout"),
+            sdk_error("APIConnectionError", code="connection_failed"),
+            sdk_error("RateLimitError", status=429, code="rate_limit_exceeded"),
+            sdk_error("InternalServerError", status=500, code="server_error"),
+        )
+        for transient_error in transient_errors:
+            with self.subTest(exception_class=type(transient_error).__name__):
+                outputs = stage_outputs()
+                client, responses = fake_client(
+                    [outputs[0], transient_error, *outputs[1:]]
+                )
+                with tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    manager = self._manager(root, client)
+                    with patch(
+                        "agent_proof_runtime.mission_studio_openai._retry_pause"
+                    ) as retry_sleep:
+                        session = wait_for_session(
+                            manager,
+                            manager.start({**VALID, "provider": "openai"}),
+                        )
+                    self.assertEqual(len(responses.calls), 8)
+                    retry_sleep.assert_called_once_with(0.25)
+                    self.assertEqual(
+                        [event["type"] for event in session["events"]],
+                        EXPECTED_EVENTS,
+                    )
+                    self.assertEqual(session["mission_status"], "PASSED")
+                    self.assertEqual(session["proof_status"], "LOCAL_VERIFIED")
+                    self.assertEqual(session["anchor_status"], "UNANCHORED")
+                    run_dir = root / "runs" / session["apr_run_id"]
+                    bundle = json.loads(
+                        (run_dir / "proof-bundle.json").read_text(encoding="utf-8")
+                    )
+                    self.assertEqual(len(bundle["artifacts"]), 4)
+                    self.assertEqual(
+                        sum(check["passed"] for check in bundle["acceptance"]["checks"]),
+                        16,
+                    )
+                    trace = json.loads(
+                        (run_dir / "artifact" / "studio" / "trace.json").read_text(
+                            encoding="utf-8"
+                        )
+                    )
+                    self.assertEqual(trace["stages"][1]["stage_id"], "research")
+                    self.assertEqual(trace["stages"][1]["attempt_count"], 2)
+
+    def test_permanent_400_and_401_are_not_retried(self) -> None:
+        cases = (
+            ("BadRequestError", 400, "openai_bad_request"),
+            ("AuthenticationError", 401, "openai_auth_failed"),
+            ("PermissionDeniedError", 403, "openai_permission_denied"),
+        )
+        for exception_class, status, category in cases:
+            with self.subTest(status=status):
+                outputs = stage_outputs()
+                client, responses = fake_client(
+                    [
+                        outputs[0],
+                        sdk_error(
+                            exception_class,
+                            status=status,
+                            request_id=f"req_safe_{status}",
+                            code="safe_test_code",
+                        ),
+                    ]
+                )
+                provider = MissionStudioOpenAIProvider(
+                    SimpleNamespace(**{**VALID, "provider": "openai"}), client=client
+                )
+                provider.run_stage("planner")
+                with patch(
+                    "agent_proof_runtime.mission_studio_openai._retry_pause"
+                ) as retry_sleep:
+                    with self.assertRaises(MissionStudioOpenAIError) as raised:
+                        provider.run_stage("research")
+                self.assertEqual(raised.exception.category, category)
+                self.assertEqual(raised.exception.stage, "research")
+                self.assertEqual(raised.exception.http_status, status)
+                self.assertEqual(raised.exception.request_id, f"req_safe_{status}")
+                self.assertEqual(raised.exception.attempt_count, 1)
+                self.assertEqual(len(responses.calls), 2)
+                retry_sleep.assert_not_called()
+
+    def test_research_retry_exhaustion_persists_only_safe_diagnostics(self) -> None:
+        outputs = stage_outputs()
+        failures = [
+            sdk_error(
+                "InternalServerError",
+                status=503,
+                request_id=f"req_safe_retry_{attempt}",
+                code="server_error",
+                message="sk-secret C:\\private raw response body",
+            )
+            for attempt in range(1, 4)
+        ]
+        client, responses = fake_client([outputs[0], *failures])
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manager = self._manager(root, client)
+            with patch(
+                "agent_proof_runtime.mission_studio_openai._retry_pause"
+            ) as retry_sleep, self.assertLogs(
+                "agent_proof_runtime.mission_studio", level="WARNING"
+            ) as captured:
+                session = wait_for_session(
+                    manager,
+                    manager.start({**VALID, "provider": "openai"}),
+                )
+        self.assertEqual(session["state"], "failed")
+        self.assertEqual(session["failure_category"], "openai_server_error")
+        self.assertEqual(
+            session["failure_diagnostics"],
+            {
+                "category": "openai_server_error",
+                "stage": "research",
+                "http_status": 503,
+                "request_id": "req_safe_retry_3",
+                "openai_error_code": "server_error",
+                "exception_class": "InternalServerError",
+                "attempt_count": 3,
+            },
+        )
+        self.assertEqual(len(responses.calls), 4)
+        self.assertEqual([call.args[0] for call in retry_sleep.call_args_list], [0.25, 0.5])
+        self.assertNotIn(
+            "handoff.research_to_content", [event["type"] for event in session["events"]]
+        )
+        self.assertNotIn("apr.run.started", [event["type"] for event in session["events"]])
+        safe_serialized = json.dumps({"session": session, "logs": captured.output})
+        self.assertNotIn("sk-secret", safe_serialized)
+        self.assertNotIn("C:\\\\private", safe_serialized)
+        self.assertNotIn("raw response body", safe_serialized)
+
+    def test_live_html_builder_timeout_uses_extended_bounded_attempts(self) -> None:
+        outputs = stage_outputs()
+        client, responses = fake_client(
+            [
+                outputs[0],
+                outputs[1],
+                outputs[2],
+                TimeoutError("raw builder timeout must never persist"),
+                TimeoutError("raw builder timeout must never persist"),
+                TimeoutError("raw builder timeout must never persist"),
+            ]
+        )
+        provider = MissionStudioOpenAIProvider(
+            SimpleNamespace(**{**VALID, "provider": "openai"}), client=client
+        )
+        for stage_id in ("planner", "research", "content"):
+            provider.run_stage(stage_id)
+        with patch(
+            "agent_proof_runtime.mission_studio_openai._retry_pause"
+        ) as retry_sleep:
+            with self.assertRaises(MissionStudioOpenAIError) as raised:
+                provider.run_stage("html_builder")
+        self.assertEqual(raised.exception.category, "openai_timeout")
+        self.assertEqual(raised.exception.stage, "html_builder")
+        self.assertEqual(raised.exception.attempt_count, 3)
+        self.assertEqual(len(responses.calls), 6)
+        self.assertEqual(
+            [call["timeout"] for call in responses.calls],
+            [120, 120, 180, 300, 300, 300],
+        )
+        self.assertEqual(
+            [call.args[0] for call in retry_sleep.call_args_list], [0.25, 0.5]
+        )
+        self.assertNotIn(
+            "raw builder timeout", json.dumps(raised.exception.safe_diagnostics())
+        )
+
+    def test_live_quality_floor_rejects_fixture_like_artifacts(self) -> None:
+        artifacts = website_artifacts()
+        with self.assertRaises(MissionStudioOpenAIError) as html_error:
+            _validate_live_quality(
+                SimpleNamespace(
+                    path="site/index.html", content=artifacts[0]["content"]
+                )
+            )
+        self.assertEqual(
+            html_error.exception.contract_reason, "html_quality_floor"
+        )
+        with self.assertRaises(MissionStudioOpenAIError) as css_error:
+            _validate_live_quality(
+                SimpleNamespace(
+                    path="site/styles.css", content=artifacts[1]["content"]
+                )
+            )
+        self.assertEqual(css_error.exception.contract_reason, "css_quality_floor")
+
+    def test_qa_recovery_never_replaces_model_authored_artifacts(self) -> None:
+        outputs = stage_outputs()
+        rejected_qa = {
+            **outputs[6],
+            "approved": False,
+            "issues": ["subjective QA rejection"],
+        }
+        client, responses = fake_client(
+            [*outputs[:6], rejected_qa, rejected_qa, rejected_qa]
+        )
+        provider = MissionStudioOpenAIProvider(
+            SimpleNamespace(**{**VALID, "provider": "openai"}), client=client
+        )
+        with patch("agent_proof_runtime.mission_studio_openai._retry_pause"):
+            for stage_id in (
+                "planner",
+                "research",
+                "content",
+                "html_builder",
+                "css_builder",
+                "data_builder",
+                "qa",
+            ):
+                result = provider.run_stage(stage_id)
+        self.assertEqual(len(responses.calls), 9)
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(
+            result["event_output"]["completion_mode"],
+            "deterministic_contract_recovery",
+        )
+        self.assertEqual(provider._outputs["qa"]["approved"], True)
+        self.assertEqual(
+            provider._records[-1]["recovery_contract_reason"], "qa_not_approved"
+        )
+        self.assertEqual(
+            [artifact.content for artifact in provider.proposal.artifacts[:3]],
+            [outputs[index]["artifact"]["content"] for index in (3, 4, 5)],
+        )
+
+    def test_absent_server_key_fails_closed_without_apr(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manager = self._manager(root, None)
+            with patch.dict(os.environ, {}, clear=True):
+                session = wait_for_session(
+                    manager,
+                    manager.start({**VALID, "provider": "openai"}),
+                )
+            self.assertEqual(session["state"], "failed")
+            self.assertEqual(session["failure_category"], "openai_key_absent")
+            self.assertEqual(session["agents"][0]["status"], "failed")
+            self.assertEqual(session["events"][-1]["type"], "studio.mission_failed")
+            self.assertEqual(
+                session["events"][-1]["category"], "openai_key_absent"
+            )
+            self.assertNotIn("apr.run.started", [e["type"] for e in session["events"]])
+            self.assertIsNone(session["apr_run_id"])
+            self.assertFalse((root / "runs").exists())
+
+    def test_missing_optional_sdk_has_a_safe_category(self) -> None:
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "server-only"}, clear=True):
+            with patch.dict(sys.modules, {"openai": None}):
+                provider = MissionStudioOpenAIProvider(
+                    SimpleNamespace(**{**VALID, "provider": "openai"})
+                )
+                with self.assertRaises(MissionStudioOpenAIError) as raised:
+                    provider.run_stage("planner")
+        self.assertEqual(raised.exception.category, "openai_sdk_unavailable")
+
+    def test_live_client_uses_120_second_timeout_and_no_sdk_retries(self) -> None:
+        captured: dict[str, object] = {}
+
+        def fake_openai(**kwargs: object) -> object:
+            captured.update(kwargs)
+            return SimpleNamespace(responses=SimpleNamespace())
+
+        fake_module = SimpleNamespace(OpenAI=fake_openai)
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "server-only"}, clear=True):
+            with patch.dict(sys.modules, {"openai": fake_module}):
+                provider = MissionStudioOpenAIProvider(
+                    SimpleNamespace(**{**VALID, "provider": "openai"})
+                )
+                provider._client_for_request()
+        self.assertEqual(captured["timeout"], OPENAI_TIMEOUT_SECONDS)
+        self.assertEqual(captured["timeout"], 120)
+        self.assertEqual(captured["max_retries"], 0)
+        self.assertIn("api_key", captured)
+
+    def test_malformed_duplicate_and_request_errors_are_safely_categorized(self) -> None:
+        for output in ("not json", '{"summary":"one","summary":"two"}'):
+            with self.subTest(output=output):
+                client, _ = fake_client([output])
+                provider = MissionStudioOpenAIProvider(
+                    SimpleNamespace(**{**VALID, "provider": "openai"}), client=client
+                )
+                with self.assertRaises(MissionStudioOpenAIError) as raised:
+                    provider.run_stage("planner")
+                self.assertEqual(raised.exception.category, "structured_output_invalid")
+
+        unsafe_output = dict(stage_outputs()[0])
+        unsafe_output["summary"] = "Traceback (most recent call last): C:\\private\\run"
+        client, _ = fake_client([unsafe_output])
+        provider = MissionStudioOpenAIProvider(
+            SimpleNamespace(**{**VALID, "provider": "openai"}), client=client
+        )
+        with self.assertRaises(MissionStudioOpenAIError) as unsafe:
+            provider.run_stage("planner")
+        self.assertEqual(unsafe.exception.category, "stage_contract_rejected")
+
+        client, _ = fake_client(
+            [RuntimeError("sk-secret C:\\private\\trace raw response body")]
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            manager = self._manager(Path(temporary), client)
+            session = wait_for_session(
+                manager,
+                manager.start({**VALID, "provider": "openai"}),
+            )
+        serialized = json.dumps(session)
+        self.assertEqual(session["failure_category"], "openai_request_failed")
+        self.assertNotIn("sk-secret", serialized)
+        self.assertNotIn("C:\\\\private", serialized)
+        self.assertNotIn("raw response body", serialized)
+        self.assertEqual(
+            session["failure_diagnostics"]["exception_class"], "RuntimeError"
+        )
+        self.assertEqual(session["failure_diagnostics"]["attempt_count"], 1)
+
+    def test_timeout_has_a_safe_category(self) -> None:
+        client, responses = fake_client(
+            [TimeoutError("secret timeout details") for _ in range(3)]
+        )
+        provider = MissionStudioOpenAIProvider(
+            SimpleNamespace(**{**VALID, "provider": "openai"}), client=client
+        )
+        with patch("agent_proof_runtime.mission_studio_openai._retry_pause"):
+            with self.assertRaises(MissionStudioOpenAIError) as raised:
+                provider.run_stage("planner")
+        self.assertEqual(raised.exception.category, "openai_timeout")
+        self.assertEqual(raised.exception.stage, "planner")
+        self.assertEqual(raised.exception.attempt_count, 3)
+        self.assertEqual(len(responses.calls), 3)
+
+    def test_bad_split_artifact_contracts_retry_then_fail_without_template_fallback(self) -> None:
+        base = stage_outputs()
+        html = base[3]["artifact"]
+        css = base[4]["artifact"]
+        data = base[5]["artifact"]
+        cases: dict[str, tuple[str, dict, str]] = {
+            "wrong_path": (
+                "html_builder",
+                {**base[3], "artifact": {**html, "path": "site/other.html"}},
+                "artifact_path",
+            ),
+            "wrong_media": (
+                "html_builder",
+                {**base[3], "artifact": {**html, "media_type": "text/plain"}},
+                "media_type",
+            ),
+            "executable_html": (
+                "html_builder",
+                {
+                    **base[3],
+                    "artifact": {
+                        **html,
+                        "content": html["content"].replace(
+                            "<main>", '<main onmouseover="alert(1)">'
+                        ),
+                    },
+                },
+                "executable_html",
+            ),
+            "required_marker": (
+                "html_builder",
+                {
+                    **base[3],
+                    "artifact": {
+                        **html,
+                        "content": html["content"].replace(
+                            'data-apr-section="cta"', 'data-section="cta"'
+                        ),
+                    },
+                },
+                "required_marker",
+            ),
+            "oversized_css": (
+                "css_builder",
+                {
+                    **base[4],
+                    "artifact": {
+                        **css,
+                        "content": "x" * (ARTIFACT_LIMITS["site/styles.css"] + 1),
+                    },
+                },
+                "artifact_size",
+            ),
+            "external_css": (
+                "css_builder",
+                {
+                    **base[4],
+                    "artifact": {
+                        **css,
+                        "content": css["content"]
+                        + "@import url(https://example.invalid/site.css);",
+                    },
+                },
+                "external_reference",
+            ),
+            "invalid_data_json": (
+                "data_builder",
+                {**base[5], "artifact": {**data, "content": "not-json"}},
+                "data_json_invalid",
+            ),
+        }
+        stage_order = (
+            "planner",
+            "research",
+            "content",
+            "html_builder",
+            "css_builder",
+            "data_builder",
+            "qa",
+        )
+        for name, (target_stage, bad_output, contract_reason) in cases.items():
+            with self.subTest(name=name):
+                target_index = stage_order.index(target_stage)
+                client, responses = fake_client(
+                    [*base[:target_index], bad_output, bad_output, bad_output]
+                )
+                provider = MissionStudioOpenAIProvider(
+                    SimpleNamespace(**{**VALID, "provider": "openai"}), client=client
+                )
+                for stage_id in stage_order[:target_index]:
+                    provider.run_stage(stage_id)
+                with patch("agent_proof_runtime.mission_studio_openai._retry_pause"):
+                    with self.assertRaises(MissionStudioOpenAIError) as raised:
+                        provider.run_stage(target_stage)
+                self.assertEqual(raised.exception.category, "stage_contract_rejected")
+                self.assertEqual(raised.exception.contract_reason, contract_reason)
+                self.assertEqual(len(responses.calls), target_index + 3)
+                last_retry_input = json.loads(responses.calls[-1]["input"])
+                self.assertEqual(
+                    last_retry_input["retry"]["contract_reason"], contract_reason
+                )
+                self.assertIn(
+                    "Never substitute fixture copy",
+                    last_retry_input["retry"]["instruction"],
+                )
+
+
+class MissionStudioDockerContractTests(unittest.TestCase):
+    def test_docker_installs_openai_extra_without_declaring_a_key(self) -> None:
+        dockerfile = Path("Dockerfile").read_text(encoding="utf-8")
+        self.assertIn("python -m pip install --no-cache-dir '.[openai]'", dockerfile)
+        self.assertNotIn("OPENAI_API_KEY", dockerfile)
+        self.assertNotIn("APR_OPENAI_MODEL", dockerfile)
+
+    def test_ui_exposes_only_functional_provider_controls(self) -> None:
+        html = render_mission_control("csrf-test-token")
+        self.assertIn('id="studio-provider"', html)
+        self.assertIn('<option value="fixture">FIXTURE</option>', html)
+        self.assertIn('<option value="openai" disabled>LIVE GPT-5.6</option>', html)
+        self.assertIn("OPENAI KEY ABSENT", html)
+        self.assertIn("provider:studioProvider.value", html)
+        self.assertIn('id="studio-preview-link"', html)
+        self.assertIn("OPEN GENERATED SITE", html)
+        self.assertIn("item.contract_reason", html)
+        self.assertIn("failure_diagnostics", html)
+        self.assertIn("/artifact/site/index.html", html)
+        self.assertIn('class="runtime-version-note"', html)
+        self.assertNotIn('class="runtime-name"', html)
+        self.assertNotIn("official mark ·", html)
+        self.assertNotIn("official app mark ·", html)
+        self.assertIn(
+            ".runtime-chip.primary { border: 0; box-shadow: none; }", html
+        )
+        self.assertIn(
+            "grid-template-columns: repeat(7,minmax(0,1fr))", html
+        )
+        self.assertIn('class="brand-mask"', html)
+        self.assertIn('class="brand-circuit"', html)
+        self.assertNotIn('class="brand-source-label"', html)
+        self.assertNotIn('class="brand-identity"', html)
+        self.assertIn(".board-traces {", html)
+        self.assertIn("filter: none;", html)
+        self.assertIn(".agent-pipeline::before", html)
+        self.assertIn("background: rgba(4,13,16,.2)", html)
+        self.assertIn('class="bus-tap"', html)
+        self.assertIn('class="flow-via-core"', html)
+        self.assertIn('class="runtime-gate"', html)
+        self.assertIn('class="runtime-openai-card"', html)
+        self.assertIn('class="runtime-chip primary codex-core"', html)
+        self.assertIn('class="failure-gates"', html)
+        self.assertIn('id="system-status"', html)
+        self.assertIn('content: "MISSION BUS"', html)
+        self.assertIn("#missions .card::after", html)
+        self.assertIn("repeating-linear-gradient(90deg", html)
+        self.assertIn('data-run-state="idle"', html)
+        self.assertIn("7 AGENTS DOCKED", html)
+        self.assertIn("@keyframes agent-deploy", html)
+        self.assertIn("@keyframes agent-chip-scan", html)
+        self.assertIn("@keyframes gate-scan", html)
+        self.assertIn("#mission-studio { order: 3; }", html)
+        self.assertIn("studioNode.dataset.runState", html)
+        self.assertIn("dataset.runState = 'deploying'", html)
+        self.assertNotIn("api_key:", html)
+        for stage_id in (
+            "planner",
+            "research",
+            "content",
+            "html_builder",
+            "css_builder",
+            "data_builder",
+            "qa",
+        ):
+            self.assertIn(f'data-studio-agent="{stage_id}"', html)
+        self.assertNotIn('data-studio-agent="builder"', html)
+
+
+if __name__ == "__main__":
+    unittest.main()

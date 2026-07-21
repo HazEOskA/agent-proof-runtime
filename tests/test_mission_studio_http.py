@@ -78,11 +78,13 @@ class MissionStudioHttpTests(unittest.TestCase):
                     with self.assertRaises(HTTPError) as denied:
                         urlopen(missing_token, timeout=5)
                     self.assertEqual(denied.exception.code, HTTPStatus.FORBIDDEN)
+                    denied.exception.read()
                     denied.exception.close()
 
                     with self.assertRaises(HTTPError) as wrong_token:
                         self._post(base + "/api/studio/start", VALID, "wrong-token")
                     self.assertEqual(wrong_token.exception.code, HTTPStatus.FORBIDDEN)
+                    wrong_token.exception.read()
                     wrong_token.exception.close()
 
                     with self.assertRaises(HTTPError) as wrong_type:
@@ -95,6 +97,7 @@ class MissionStudioHttpTests(unittest.TestCase):
                     self.assertEqual(
                         wrong_type.exception.code, HTTPStatus.UNSUPPORTED_MEDIA_TYPE
                     )
+                    wrong_type.exception.read()
                     wrong_type.exception.close()
 
                     oversized = HTTPConnection(
@@ -119,7 +122,18 @@ class MissionStudioHttpTests(unittest.TestCase):
                             control.csrf_token,
                         )
                     self.assertEqual(unknown_field.exception.code, HTTPStatus.BAD_REQUEST)
+                    unknown_field.exception.read()
                     unknown_field.exception.close()
+
+                    with self.assertRaises(HTTPError) as browser_key:
+                        self._post(
+                            base + "/api/studio/start",
+                            {**VALID, "api_key": "browser-key-is-forbidden"},
+                            control.csrf_token,
+                        )
+                    self.assertEqual(browser_key.exception.code, HTTPStatus.BAD_REQUEST)
+                    browser_key.exception.read()
+                    browser_key.exception.close()
 
                     with self.assertRaises(HTTPError) as invalid_id:
                         urlopen(base + "/api/studio/../bad", timeout=5)
@@ -127,10 +141,12 @@ class MissionStudioHttpTests(unittest.TestCase):
                         invalid_id.exception.code,
                         {HTTPStatus.BAD_REQUEST, HTTPStatus.NOT_FOUND},
                     )
+                    invalid_id.exception.read()
                     invalid_id.exception.close()
                     with self.assertRaises(HTTPError) as missing:
                         urlopen(base + "/api/studio/studio-" + "0" * 32, timeout=5)
                     self.assertEqual(missing.exception.code, HTTPStatus.NOT_FOUND)
+                    missing.exception.read()
                     missing.exception.close()
 
                     with self._post(
@@ -149,19 +165,37 @@ class MissionStudioHttpTests(unittest.TestCase):
                         ) as response:
                             session = json.loads(response.read())["session"]
                     self.assertEqual(session["state"], "completed")
+                    self.assertEqual(session["provider"], "fixture")
                     self.assertIsNotNone(session["apr_run_id"])
                     self.assertEqual(session["mission_status"], "PASSED")
                     self.assertEqual(session["proof_status"], "LOCAL_VERIFIED")
                     self.assertEqual(session["anchor_status"], "UNANCHORED")
+                    artifact_base = base + "/runs/" + session["apr_run_id"] + "/artifact/site/"
+                    with urlopen(artifact_base + "index.html", timeout=5) as response:
+                        self.assertEqual(response.status, HTTPStatus.OK)
+                        artifact_csp = response.headers["Content-Security-Policy"]
+                        self.assertIn("style-src 'self' 'unsafe-inline'", artifact_csp)
+                        self.assertIn("sandbox allow-same-origin", artifact_csp)
+                    with urlopen(artifact_base + "styles.css", timeout=5) as response:
+                        self.assertEqual(response.status, HTTPStatus.OK)
+                        self.assertEqual(
+                            response.headers.get_content_type(), "text/css"
+                        )
                     event_types = [item["type"] for item in session["events"]]
                     for expected in (
                         "studio.mission_accepted",
                         "agent.planner.completed",
                         "handoff.planner_to_research",
                         "agent.research.completed",
-                        "handoff.research_to_builder",
-                        "agent.builder.completed",
-                        "handoff.builder_to_qa",
+                        "handoff.research_to_content",
+                        "agent.content.completed",
+                        "handoff.content_to_html_builder",
+                        "agent.html_builder.completed",
+                        "handoff.html_builder_to_css_builder",
+                        "agent.css_builder.completed",
+                        "handoff.css_builder_to_data_builder",
+                        "agent.data_builder.completed",
+                        "handoff.data_builder_to_qa",
                         "agent.qa.completed",
                         "handoff.qa_to_apr",
                         "apr.run.started",

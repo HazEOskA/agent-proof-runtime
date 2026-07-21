@@ -48,9 +48,8 @@ _DASHBOARD = r'''<!doctype html>
       overflow-x: hidden;
       color: var(--text);
       background:
-        radial-gradient(circle at 50% -12%, rgba(47, 231, 221, .14), transparent 34rem),
-        radial-gradient(circle at 7% 24%, rgba(39, 112, 122, .11), transparent 24rem),
-        linear-gradient(180deg, #071216 0%, var(--board) 44%, var(--board-deep) 100%);
+        linear-gradient(180deg, rgba(7,18,22,.72) 0%, rgba(4,12,15,.82) 48%, rgba(2,7,9,.96) 100%),
+        #030a0c;
     }
 
     body::before {
@@ -58,11 +57,11 @@ _DASHBOARD = r'''<!doctype html>
       position: fixed;
       inset: 0;
       pointer-events: none;
-      opacity: .3;
+      opacity: .42;
       background-image:
-        radial-gradient(circle, rgba(72, 201, 196, .42) 1px, transparent 1.6px),
-        linear-gradient(90deg, transparent 49.7%, rgba(45, 113, 119, .18) 50%, transparent 50.3%),
-        linear-gradient(0deg, transparent 49.7%, rgba(45, 113, 119, .12) 50%, transparent 50.3%);
+        radial-gradient(circle, rgba(83, 170, 169, .4) 1px, transparent 1.45px),
+        linear-gradient(90deg, transparent 49.65%, rgba(46, 104, 109, .22) 50%, transparent 50.35%),
+        linear-gradient(0deg, transparent 49.65%, rgba(46, 104, 109, .16) 50%, transparent 50.35%);
       background-size: 22px 22px, 176px 176px, 176px 176px;
       mask-image: linear-gradient(to bottom, black 0%, rgba(0,0,0,.88) 72%, transparent 100%);
     }
@@ -74,13 +73,15 @@ _DASHBOARD = r'''<!doctype html>
       height: 100%;
       pointer-events: none;
       z-index: 0;
-      opacity: .34;
-      filter: drop-shadow(0 0 7px rgba(54, 240, 228, .16));
+      opacity: .48;
+      filter: none;
     }
-    .board-traces .trace { fill: none; stroke: #1c7d80; stroke-width: 2; vector-effect: non-scaling-stroke; }
-    .board-traces .trace.hot { stroke: #35e7df; stroke-dasharray: 4 18; animation: trace-flow 8s linear infinite; }
+    .board-traces .trace { fill: none; stroke: #24666a; stroke-width: 1.25; vector-effect: non-scaling-stroke; }
+    .board-traces .trace.secondary { stroke: #173f43; stroke-width: .8; }
+    .board-traces .trace.hot { stroke: #35cfc9; stroke-width: 1.5; stroke-dasharray: 4 18; animation: trace-flow 8s linear infinite; }
     .board-traces .trace.fail { stroke: #ff5d68; stroke-dasharray: 2 24; animation: trace-flow 5s linear infinite reverse; }
-    .board-traces .via { fill: #061114; stroke: #35e7df; stroke-width: 2; vector-effect: non-scaling-stroke; }
+    .board-traces .via { fill: #051013; stroke: #329b99; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+    .board-traces .via-core { fill: #2d7778; opacity: .72; }
 
     @keyframes trace-flow { to { stroke-dashoffset: -176; } }
     @keyframes signal-pulse {
@@ -113,8 +114,9 @@ _DASHBOARD = r'''<!doctype html>
       padding: 8px 12px;
       border: 1px solid #27545a;
       border-radius: 12px;
-      background: rgba(11, 29, 34, .9);
-      box-shadow: inset 0 1px rgba(255,255,255,.03), 0 10px 50px rgba(0,0,0,.22);
+      background: rgba(7, 20, 24, .52);
+      box-shadow: none;
+      backdrop-filter: blur(7px);
       font: 700 10px/1.35 var(--mono);
       letter-spacing: .1em;
       text-transform: uppercase;
@@ -145,17 +147,25 @@ _DASHBOARD = r'''<!doctype html>
     }
     .brand-lockup {
       position: relative;
-      width: min(510px, 100%);
-      height: 172px;
+      width: min(410px, 100%);
+      height: 148px;
       min-width: 0;
-      overflow: hidden;
+      overflow: visible;
       isolation: isolate;
-      -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 4%, #000 92%, transparent 100%);
-      mask-image: linear-gradient(90deg, transparent 0, #000 4%, #000 92%, transparent 100%);
+    }
+    .brand-mask {
+      position: relative;
+      z-index: 2;
+      width: 148px;
+      height: 148px;
+      overflow: hidden;
+      clip-path: polygon(24% 2%,76% 2%,98% 24%,98% 76%,76% 98%,24% 98%,2% 76%,2% 24%);
+      background: #061114;
+      border: 1px solid rgba(74, 145, 146, .42);
     }
     .brand-source {
       position: absolute;
-      z-index: -1;
+      z-index: 0;
       left: -6px;
       top: -60px;
       width: 864px;
@@ -163,44 +173,60 @@ _DASHBOARD = r'''<!doctype html>
       height: 1536px;
       object-fit: cover;
       pointer-events: none;
+      filter: grayscale(.12) saturate(.58) contrast(1.32) brightness(.72);
     }
-    .brand-source-label {
+    .brand-mask::after {
+      content: "";
       position: absolute;
-      right: 16px;
-      bottom: 8px;
-      padding: 3px 7px;
-      border: 1px solid rgba(70, 226, 218, .25);
-      border-radius: 999px;
-      background: rgba(3, 12, 15, .82);
-      color: #6f979b;
-      font: 700 8px/1 var(--mono);
-      letter-spacing: .08em;
-      text-transform: uppercase;
+      z-index: 3;
+      inset: 8px;
+      clip-path: inherit;
+      border: 1px solid rgba(104, 247, 154, .2);
+      pointer-events: none;
     }
+    .brand-circuit {
+      position: absolute;
+      z-index: 1;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    .brand-circuit path { fill: none; stroke: #2f6d70; stroke-width: 1.15; vector-effect: non-scaling-stroke; }
+    .brand-circuit circle { fill: #061114; stroke: #4da5a2; stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+    .brand-circuit .signal { stroke: #55bcb7; stroke-dasharray: 3 12; animation: trace-flow 7s linear infinite; }
 
-    .runtime-stack { display: grid; grid-template-columns: repeat(3, minmax(106px, 1fr)); align-items: stretch; gap: 10px; }
+    .runtime-stack { display: flex; align-items: center; justify-content: flex-end; gap: 22px; min-width: 238px; }
     .runtime-chip {
-      min-height: 82px;
+      min-height: 0;
       display: grid;
-      grid-template-columns: 38px minmax(0, 1fr);
-      place-items: center start;
-      gap: 9px;
-      padding: 10px;
-      border: 1px solid #2c4650;
-      border-radius: 12px;
-      background: linear-gradient(150deg, rgba(26,46,53,.95), rgba(7,16,20,.95));
-      box-shadow: inset 0 1px rgba(255,255,255,.05), 0 10px 30px rgba(0,0,0,.25);
+      place-items: center;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
       color: #f2f7f7;
+      opacity: .74;
+      transition: opacity .18s ease, transform .18s ease;
     }
-    .runtime-chip.primary { border-color: #337584; box-shadow: inset 0 0 25px rgba(54,240,228,.08), 0 0 18px rgba(54,240,228,.1); }
-    .runtime-chip svg { width: 34px; height: 34px; color: #fff; }
-    .runtime-chip.openai-chip { grid-template-columns: 1fr; align-content: center; gap: 6px; }
-    .runtime-chip svg.openai-wordmark { width: 82px; height: 22px; }
-    .runtime-chip svg.codex-mark { width: 38px; height: 38px; border-radius: 10px; }
-    .runtime-chip.openai-chip small { margin-top: 0; }
-    .runtime-chip .runtime-name { font: 800 13px/1.05 var(--sans); letter-spacing: -.02em; }
-    .runtime-chip small { display: block; margin-top: 5px; color: #769198; font: 700 8px/1.25 var(--mono); letter-spacing: .04em; text-transform: uppercase; }
-    .marks-note { grid-column: 1 / -1; color: #526a70; font: 700 8px/1.35 var(--mono); text-align: right; }
+    .runtime-chip:hover { opacity: 1; transform: translateY(-1px); }
+    .runtime-chip.primary { border: 0; box-shadow: none; }
+    .runtime-chip svg { width: 38px; height: 38px; color: #eef8f8; filter: none; }
+    .runtime-chip.openai-chip { display: grid; }
+    .runtime-chip svg.openai-wordmark { width: 86px; height: 24px; }
+    .runtime-chip svg.codex-mark { width: 42px; height: 42px; border-radius: 10px; }
+    .runtime-version-note {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
 
     .hero {
       display: grid;
@@ -225,8 +251,8 @@ _DASHBOARD = r'''<!doctype html>
       padding: 16px;
       border: 1px solid #21515a;
       border-radius: 14px;
-      background: linear-gradient(145deg, rgba(10,28,32,.9), rgba(4,11,13,.95));
-      box-shadow: inset 0 0 30px rgba(54,240,228,.05);
+      background: rgba(5, 17, 20, .46);
+      box-shadow: none;
     }
     .hero-proof .proof-line { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #18333a; font: 700 10px/1.35 var(--mono); color: #718b91; }
     .hero-proof .proof-line:last-child { border-bottom: 0; }
@@ -244,9 +270,9 @@ _DASHBOARD = r'''<!doctype html>
       padding: 7px;
       border: 1px solid #2b6268;
       border-radius: 13px;
-      background: rgba(10, 25, 29, .9);
+      background: rgba(7, 20, 24, .56);
       backdrop-filter: blur(16px);
-      box-shadow: 0 12px 40px rgba(0,0,0,.28), inset 0 0 24px rgba(54,240,228,.04);
+      box-shadow: none;
       scrollbar-width: none;
     }
     .quick-nav::-webkit-scrollbar { display: none; }
@@ -261,8 +287,9 @@ _DASHBOARD = r'''<!doctype html>
       margin-top: 18px;
       border: 1px solid #1d454c;
       border-radius: 16px;
-      background: linear-gradient(145deg, rgba(9,24,28,.96), rgba(5,14,17,.95));
-      box-shadow: inset 0 1px rgba(255,255,255,.025), 0 20px 50px rgba(0,0,0,.24);
+      background: rgba(5, 16, 19, .48);
+      box-shadow: none;
+      backdrop-filter: blur(5px);
     }
     .section-block::before {
       content: "";
@@ -290,7 +317,7 @@ _DASHBOARD = r'''<!doctype html>
       animation: signal-pulse 3s ease-in-out infinite;
     }
 
-    .control-room { padding: 18px; border-color: #27b9b2; box-shadow: inset 0 0 40px rgba(54,240,228,.04), 0 0 0 1px rgba(54,240,228,.05); }
+    .control-room { padding: 18px; border-color: #277b7a; box-shadow: none; }
     .section-head { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin: 0 0 18px; }
     h2 { margin: 5px 0 0; font-size: clamp(24px, 3vw, 34px); line-height: 1.1; letter-spacing: -.035em; }
     h3 { letter-spacing: -.02em; }
@@ -304,21 +331,22 @@ _DASHBOARD = r'''<!doctype html>
       border: 1px solid #1e474e;
       border-radius: 13px;
       background:
-        radial-gradient(circle at 72% 45%, rgba(54,240,228,.07), transparent 24%),
         linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px),
         linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
-        #061316;
-      background-size: auto, 20px 20px, 20px 20px, auto;
-      box-shadow: inset 0 0 60px rgba(0,0,0,.35);
+        rgba(3, 13, 16, .42);
+      background-size: 20px 20px, 20px 20px, auto;
+      box-shadow: none;
     }
     .flow-wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-    .bus-base, .bus-progress, .tamper-wire { fill: none; vector-effect: non-scaling-stroke; }
-    .bus-base { stroke: #20464d; stroke-width: 8; }
-    .bus-base-thin { fill: none; stroke: #315c63; stroke-width: 1.5; stroke-dasharray: 3 8; vector-effect: non-scaling-stroke; }
-    .bus-progress { stroke: var(--green); stroke-width: 3; stroke-dasharray: 9 13; filter: drop-shadow(0 0 5px rgba(104,247,154,.8)); animation: trace-flow 3.2s linear infinite; opacity: 0; }
-    .tamper-wire { stroke: var(--red); stroke-width: 3; stroke-dasharray: 5 11; filter: drop-shadow(0 0 6px rgba(255,93,104,.75)); animation: trace-flow 2.1s linear infinite reverse; opacity: 0; }
-    .flow-via { fill: #061316; stroke: #3a6870; stroke-width: 2; vector-effect: non-scaling-stroke; }
-    .flow-packet { fill: var(--cyan); filter: drop-shadow(0 0 7px var(--cyan)); opacity: 0; }
+    .bus-base, .bus-base-thin, .bus-tap, .bus-progress, .tamper-wire { fill: none; vector-effect: non-scaling-stroke; }
+    .bus-base { stroke: #28585e; stroke-width: 2.2; }
+    .bus-base-thin { stroke: #315c63; stroke-width: 1; stroke-dasharray: 3 8; }
+    .bus-tap { stroke: #21494e; stroke-width: 1.15; }
+    .bus-progress { stroke: var(--green); stroke-width: 2.4; stroke-dasharray: 9 13; filter: none; animation: trace-flow 3.2s linear infinite; opacity: 0; }
+    .tamper-wire { stroke: var(--red); stroke-width: 2; stroke-dasharray: 5 11; filter: none; animation: trace-flow 2.1s linear infinite reverse; opacity: 0; }
+    .flow-via { fill: #061316; stroke: #478086; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+    .flow-via-core { fill: #3d7478; opacity: .85; }
+    .flow-packet { fill: var(--cyan); filter: none; opacity: 0; }
     .flow-board[data-state="running"] .bus-progress,
     .flow-board[data-state="verified"] .bus-progress,
     .flow-board[data-state="failed"] .bus-progress,
@@ -339,9 +367,10 @@ _DASHBOARD = r'''<!doctype html>
       min-width: 0;
       min-height: 128px;
       padding: 13px;
-      border: 1px solid #294c54;
-      border-radius: 10px;
-      background: linear-gradient(155deg, rgba(16,39,44,.97), rgba(7,17,20,.98));
+      border: 1px solid rgba(71, 111, 119, .2);
+      border-radius: 8px;
+      background: rgba(5, 17, 20, .3);
+      box-shadow: none;
       color: #70878d;
       font-family: var(--mono);
       transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
@@ -357,13 +386,13 @@ _DASHBOARD = r'''<!doctype html>
       border-radius: 50%;
       background: #061316;
     }
-    .flow-step.complete { border-color: #2c8158; color: #d3f4df; box-shadow: inset 0 0 25px rgba(104,247,154,.055); }
-    .flow-step.complete::before { border-color: var(--green); background: var(--green); box-shadow: 0 0 12px rgba(104,247,154,.7); }
-    .flow-step.live { border-color: var(--cyan); color: #e1fffc; transform: translateY(-2px); box-shadow: inset 0 0 28px rgba(54,240,228,.09), 0 0 20px rgba(54,240,228,.11); }
-    .flow-step.live::before { border-color: var(--cyan); background: var(--cyan); box-shadow: 0 0 14px rgba(54,240,228,.8); animation: signal-pulse 1.2s ease-in-out infinite; }
+    .flow-step.complete { border-color: rgba(104,247,154,.42); color: #d3f4df; box-shadow: none; }
+    .flow-step.complete::before { border-color: var(--green); background: var(--green); box-shadow: none; }
+    .flow-step.live { border-color: rgba(54,240,228,.7); color: #e1fffc; transform: none; box-shadow: none; background: rgba(54,240,228,.035); }
+    .flow-step.live::before { border-color: var(--cyan); background: var(--cyan); box-shadow: none; animation: signal-pulse 1.2s ease-in-out infinite; }
     .flow-step.warn { border-color: var(--amber); color: #ffe0a5; }
     .flow-step.failed { border-color: var(--red); color: #ffbbc0; background: linear-gradient(145deg, #2d1116, #140c0f); }
-    .flow-step.failed::before { border-color: var(--red); background: var(--red); box-shadow: 0 0 14px rgba(255,93,104,.8); }
+    .flow-step.failed::before { border-color: var(--red); background: var(--red); box-shadow: none; }
     .node-top { display: flex; justify-content: space-between; align-items: center; gap: 7px; }
     .node-index { color: #4f9694; font: 800 10px/1 var(--mono); }
     .node-state { color: #5e777c; font: 800 8px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
@@ -374,7 +403,7 @@ _DASHBOARD = r'''<!doctype html>
     .node-value { min-height: 31px; margin-top: 9px; color: #8ca2a7; font: 700 9px/1.45 var(--mono); overflow-wrap: anywhere; }
     .flow-step.complete .node-value, .flow-step.live .node-value { color: #bad0d3; }
     .flow-context { position: relative; z-index: 2; display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 8px; padding: 0 18px 17px; }
-    .context-cell { min-width: 0; padding: 8px 10px; border: 1px solid #1d3b41; border-radius: 7px; background: #071619; }
+    .context-cell { min-width: 0; padding: 8px 10px; border: 1px solid rgba(58,94,101,.22); border-radius: 7px; background: rgba(4,14,17,.28); }
     .context-cell small { display: block; color: #526c72; font: 800 7px/1.2 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
     .context-cell span { display: block; margin-top: 5px; color: #90a7ac; font: 700 9px/1.3 var(--mono); overflow-wrap: anywhere; }
     .tamper-branch {
@@ -422,7 +451,8 @@ _DASHBOARD = r'''<!doctype html>
       margin-top: 12px;
       border: 1px solid #1b3c43;
       border-radius: 14px;
-      background: rgba(6,16,19,.92);
+      background: rgba(5,16,19,.46);
+      backdrop-filter: blur(5px);
     }
     .stat { min-height: 98px; padding: 17px; border-right: 1px solid #1b3c43; }
     .stat:last-child { border: 0; }
@@ -441,8 +471,9 @@ _DASHBOARD = r'''<!doctype html>
       padding: 19px;
       border: 1px solid #2a5259;
       border-radius: 12px;
-      background: linear-gradient(145deg, rgba(11,28,32,.96), rgba(7,17,20,.96));
-      box-shadow: inset 0 0 32px rgba(54,240,228,.025);
+      background: rgba(6, 18, 21, .5);
+      box-shadow: none;
+      backdrop-filter: blur(5px);
     }
     .card::before { content: ""; position: absolute; inset: 8px auto 8px -1px; width: 2px; background: linear-gradient(transparent, var(--cyan), transparent); opacity: .7; }
     .card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
@@ -476,7 +507,7 @@ _DASHBOARD = r'''<!doctype html>
     .verify { min-height: 34px; padding: 0 10px; border-color: #31535b; background: #10242a; color: #b5c9cd; box-shadow: none; }
     .tamper { border-color: #8b3640; background: #2b1116; color: var(--red); box-shadow: inset 0 0 18px rgba(255,93,104,.08); }
 
-    .proof-console { overflow: hidden; border: 1px solid #24464d; border-radius: 13px; background: #071417; }
+    .proof-console { overflow: hidden; border: 1px solid #24464d; border-radius: 13px; background: rgba(5,16,19,.54); backdrop-filter: blur(5px); }
     .run { display: grid; grid-template-columns: minmax(0,1.5fr) .72fr .72fr .7fr auto; align-items: center; gap: 12px; min-height: 72px; padding: 14px 16px; border-bottom: 1px solid #1c363c; }
     .run:last-child { border: 0; }
     .run-title { font-weight: 760; }
@@ -508,8 +539,9 @@ _DASHBOARD = r'''<!doctype html>
       padding: 10px;
       border: 1px solid #406d83;
       border-radius: 13px;
-      background: linear-gradient(180deg, #20324a, #15283d);
-      box-shadow: inset 0 0 25px rgba(117,169,255,.1), 0 0 22px rgba(54,240,228,.08);
+      background: rgba(18, 34, 48, .58);
+      box-shadow: none;
+      backdrop-filter: blur(5px);
       font: 750 10px/1.35 var(--mono);
       color: #a9bdcb;
     }
@@ -517,8 +549,8 @@ _DASHBOARD = r'''<!doctype html>
     .dock-command { min-width: 0; padding: 9px 12px; border: 1px solid #506c8d; border-radius: 7px; background: rgba(184,213,255,.13); color: #7af4d9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .dock-power { text-align: right; color: #aabdc7; }
 
-    .studio { position: relative; margin: 16px 0; padding: 26px; border: 1px solid #31525b; border-radius: 14px; background: linear-gradient(145deg, rgba(10,25,29,.98), rgba(7,13,18,.98)); box-shadow: inset 0 1px rgba(255,255,255,.035), 0 25px 90px rgba(0,0,0,.24); overflow: hidden; }
-    .studio::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle at 82% 0, rgba(54,240,228,.09), transparent 32%); }
+    .studio { position: relative; margin: 16px 0; padding: 26px; border: 1px solid #31525b; border-radius: 14px; background: rgba(5,15,19,.52); box-shadow: none; backdrop-filter: blur(6px); overflow: hidden; }
+    .studio::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, transparent 0 77%, rgba(44,103,106,.035) 77% 77.15%, transparent 77.15%); }
     .studio-intro { position: relative; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 20px; align-items: end; }
     .studio-intro h2 { max-width: 820px; margin: 7px 0 10px; font-size: clamp(28px,4vw,50px); line-height: 1.02; letter-spacing: -.04em; }
     .studio-copy { max-width: 760px; margin: 0; color: #95a9ae; }
@@ -528,6 +560,8 @@ _DASHBOARD = r'''<!doctype html>
     .studio-form label { grid-column: 1/-1; color: #7c999f; font: 800 9px/1.3 var(--mono); letter-spacing: .16em; text-transform: uppercase; }
     .studio-form textarea { grid-column: 1/-1; width: 100%; min-height: 112px; resize: vertical; padding: 14px; border: 1px solid #34535c; border-radius: 7px; outline: 0; background: #071116; color: #dce9eb; font: 500 14px/1.55 var(--sans); }
     .studio-form textarea:focus { border-color: #36f0e4; box-shadow: 0 0 0 3px rgba(54,240,228,.08); }
+    .studio-mode { display: flex; align-items: center; gap: 9px; justify-self: start; color: #7c999f; font: 800 9px/1.3 var(--mono); letter-spacing: .08em; }
+    .studio-mode select { min-height: 42px; padding: 0 34px 0 11px; border: 1px solid #34535c; border-radius: 6px; background: #071116; color: #dce9eb; font: 800 10px var(--mono); }
     .studio-form button { min-height: 42px; }
     .studio-preset { justify-self: start; border-color: #3c5a62; background: #112127; color: #adc0c5; box-shadow: none; }
     .studio-start { justify-self: end; min-width: 180px; }
@@ -538,21 +572,25 @@ _DASHBOARD = r'''<!doctype html>
     .studio-hash { max-width: 240px; color: #6e858b; font: 700 9px/1.3 var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .studio-zones { position: relative; display: grid; grid-template-columns: minmax(0,4fr) minmax(210px,1fr); gap: 14px; margin-top: 18px; }
     .agent-zone, .trust-zone { padding: 14px; border-radius: 10px; }
-    .agent-zone { border: 1px solid #283b43; background: rgba(8,17,22,.8); }
+    .agent-zone { border: 1px solid rgba(54,84,92,.28); background: rgba(8,17,22,.24); }
     .trust-zone { border: 1px solid #327b71; background: linear-gradient(180deg,rgba(10,48,45,.72),rgba(5,24,25,.88)); box-shadow: inset 0 0 30px rgba(54,240,228,.04); }
     .zone-label { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 11px; color: #72898f; font: 800 9px/1.3 var(--mono); letter-spacing: .15em; text-transform: uppercase; }
-    .agent-pipeline { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; }
-    .studio-agent { position: relative; min-height: 152px; padding: 14px; border: 1px solid #2b3e46; border-radius: 7px; background: #0a1318; overflow: visible; transition: border-color .2s ease, background .2s ease; }
-    .studio-agent:not(:last-child)::after { content: ""; position: absolute; z-index: 1; top: 38px; left: calc(100% + 1px); width: 9px; height: 1px; background: #416069; }
-    .studio-agent .agent-index { color: #577078; font: 800 9px var(--mono); }
-    .studio-agent h3 { min-height: 35px; margin: 17px 0 8px; font-size: 14px; line-height: 1.2; }
+    .agent-pipeline { position: relative; isolation: isolate; display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); gap: 10px; }
+    .agent-pipeline::before { content: ""; position: absolute; z-index: 0; top: 17px; left: 18px; right: 18px; height: 1px; background: linear-gradient(90deg,#245358,#43908e 52%,#245358); }
+    .studio-agent { position: relative; z-index: 1; min-height: 136px; padding: 12px; border: 1px solid rgba(66,96,104,.18); border-radius: 7px; background: rgba(4,13,16,.2); overflow: visible; transition: border-color .2s ease, background .2s ease; }
+    .studio-agent:not(:last-child)::after { content: ""; position: absolute; z-index: 1; top: 17px; left: calc(100% + 1px); width: 11px; height: 1px; background: #4a8a88; }
+    .studio-agent .agent-index { display: inline-flex; align-items: center; gap: 6px; color: #69888d; font: 800 9px var(--mono); }
+    .studio-agent .agent-index::before { content: ""; width: 7px; height: 7px; border: 1px solid #43817f; border-radius: 50%; background: #061316; }
+    .studio-agent h3 { min-height: 36px; margin: 15px 0 8px; font-size: 12px; line-height: 1.2; }
     .studio-agent .agent-status { color: #83979d; font: 800 9px/1.4 var(--mono); letter-spacing: .08em; }
     .studio-agent .agent-hash { display: block; margin-top: 12px; color: #526a70; font: 700 8px/1.4 var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .studio-agent[data-status="working"] { border-color: #4e8fff; background: #0d1c2a; box-shadow: 0 0 20px rgba(78,143,255,.12); }
-    .studio-agent[data-status="completed"] { border-color: #286c5f; }
-    .studio-agent[data-status="handing_off"] { border-color: #36f0e4; box-shadow: 0 0 20px rgba(54,240,228,.14); }
-    .studio-agent[data-status="failed"] { border-color: #a93d48; background: #211015; }
-    .handoff-packet { position: absolute; z-index: 3; top: 34px; right: -5px; width: 8px; height: 8px; border-radius: 2px; background: #36f0e4; box-shadow: 0 0 12px #36f0e4; opacity: 0; }
+    .studio-agent[data-status="working"] { border-color: rgba(78,143,255,.72); background: rgba(78,143,255,.035); box-shadow: none; }
+    .studio-agent[data-status="completed"] { border-color: rgba(40,108,95,.72); }
+    .studio-agent[data-status="handing_off"] { border-color: rgba(54,240,228,.78); box-shadow: none; }
+    .studio-agent[data-status="failed"] { border-color: #a93d48; background: rgba(86,19,29,.2); }
+    .studio-agent[data-status="completed"] .agent-index::before { border-color: var(--green); background: var(--green); }
+    .studio-agent[data-status="working"] .agent-index::before, .studio-agent[data-status="handing_off"] .agent-index::before { border-color: var(--cyan); background: var(--cyan); }
+    .handoff-packet { position: absolute; z-index: 3; top: 13px; right: -5px; width: 8px; height: 8px; border-radius: 50%; background: #36f0e4; box-shadow: none; opacity: 0; }
     .studio-agent[data-status="handing_off"] .handoff-packet { opacity: 1; animation: studio-packet .65s ease-in-out infinite; }
     @keyframes studio-packet { 0%{transform:translateX(-5px);opacity:0} 30%{opacity:1} 100%{transform:translateX(12px);opacity:0} }
     .trust-gate { min-height: 152px; padding: 15px; border: 1px solid #3d9185; border-radius: 8px; background: repeating-linear-gradient(135deg,rgba(54,240,228,.025) 0 8px,transparent 8px 16px); }
@@ -572,6 +610,9 @@ _DASHBOARD = r'''<!doctype html>
     .studio-result.complete { border-color: #2b6c61; }
     .studio-result.complete .result-title { color: #73e7d5; }
     .result-title { margin: 9px 0 0; font-size: 22px; }
+    .studio-preview-link { display: inline-flex; margin-top: 12px; padding: 10px 13px; border: 1px solid #36f0e4; border-radius: 6px; background: #0a2a29; color: #8ff8ef; font: 900 9px/1 var(--mono); letter-spacing: .1em; text-decoration: none; }
+    .studio-preview-link:hover { background: #103936; color: #d8fffb; }
+    .studio-preview-link[hidden] { display: none; }
 
     .toast { position: fixed; right: 20px; bottom: 20px; z-index: 50; width: min(430px, calc(100% - 40px)); padding: 14px 16px; border: 1px solid #37d9d0; border-radius: 10px; background: #0c2529; color: #d9f9f6; box-shadow: 0 18px 70px #000b, 0 0 25px rgba(54,240,228,.12); font: 700 11px/1.5 var(--mono); opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(150%); transition: transform .22s ease, opacity .18s ease, visibility 0s linear .22s; }
     .toast.show { opacity: 1; visibility: visible; transform: translateY(0); transition-delay: 0s; }
@@ -580,7 +621,7 @@ _DASHBOARD = r'''<!doctype html>
 
     @media (max-width: 900px) {
       .masthead { grid-template-columns: 1fr; }
-      .runtime-stack { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .runtime-stack { justify-content: flex-start; }
       .hero { grid-template-columns: 1fr; }
       .hero-proof { justify-self: start; width: 100%; max-width: 620px; }
       .flow-board { min-height: 0; }
@@ -601,7 +642,14 @@ _DASHBOARD = r'''<!doctype html>
       .studio-intro, .studio-zones, .studio-bottom { grid-template-columns: 1fr; }
       .studio-badges { justify-content: flex-start; }
       .agent-pipeline { grid-template-columns: repeat(2,minmax(0,1fr)); }
-      .studio-agent:nth-child(2)::after { display: none; }
+      .agent-pipeline::before { display: none; }
+      .studio-agent:nth-child(2n)::after { display: none; }
+    }
+
+    @media (max-width: 1100px) and (min-width: 901px) {
+      .agent-pipeline { grid-template-columns: repeat(4,minmax(0,1fr)); }
+      .agent-pipeline::before { display: none; }
+      .studio-agent:nth-child(4)::after { display: none; }
     }
 
     @media (max-width: 640px) {
@@ -610,12 +658,11 @@ _DASHBOARD = r'''<!doctype html>
       .review-strip > span { max-width: 170px; }
       .strip-statuses .micro-status:nth-child(2) { display: none; }
       .masthead { padding: 22px 5px 14px; }
-      .brand-lockup { width: 100%; height: 128px; }
-      .brand-source { width: 648px; height: 1152px; left: -5px; top: -44px; }
-      .brand-source-label { display: none; }
-      .runtime-stack { grid-template-columns: 1fr; }
-      .runtime-chip { min-height: 64px; }
-      .marks-note { text-align: left; }
+      .brand-lockup { width: min(330px, 100%); height: 108px; }
+      .brand-mask { width: 108px; height: 108px; }
+      .brand-source { width: 630px; height: 1120px; left: -4px; top: -44px; }
+      .brand-circuit { opacity: .72; }
+      .runtime-stack { gap: 18px; min-width: 0; }
       .hero { min-height: 0; padding: 35px 6px 22px; }
       h1 { font-size: clamp(40px, 12vw, 58px); }
       .quick-nav { top: 4px; }
@@ -641,6 +688,471 @@ _DASHBOARD = r'''<!doctype html>
       .studio-agent::after { display: none; }
     }
 
+    /* Reference composition: functional Mission Control rendered as a PCB assembly. */
+    body {
+      background:
+        linear-gradient(180deg, rgba(8,22,28,.74), rgba(3,11,15,.94)),
+        #051014;
+    }
+    body::before {
+      opacity: .58;
+      background-image:
+        radial-gradient(circle, rgba(90,174,177,.46) 1px, transparent 1.35px),
+        linear-gradient(90deg, transparent 49.72%, rgba(62,120,126,.2) 50%, transparent 50.28%),
+        linear-gradient(0deg, transparent 49.72%, rgba(62,120,126,.16) 50%, transparent 50.28%);
+      background-size: 18px 18px, 144px 144px, 144px 144px;
+    }
+    .shell { width: min(1180px, calc(100% - 22px)); padding-top: 10px; }
+    .review-strip {
+      min-height: 48px;
+      border-color: #3c636b;
+      border-radius: 13px;
+      background: rgba(31,49,56,.72);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.055);
+    }
+    .review-strip > span { color: #a9bdc1; }
+    .micro-status { background: rgba(15,35,40,.76); }
+    .micro-status.bad { box-shadow: inset 0 0 18px rgba(255,57,74,.14); }
+
+    .masthead {
+      grid-template-columns: minmax(480px, 1.15fr) 430px;
+      align-items: start;
+      min-height: 214px;
+      padding: 14px 14px 0;
+    }
+    .brand-lockup { width: min(560px, 100%); height: 190px; overflow: hidden; }
+    .brand-mask {
+      width: 560px;
+      height: 190px;
+      max-width: 100%;
+      clip-path: none;
+      border: 0;
+      background: transparent;
+    }
+    .brand-mask::after { display: none; }
+    .brand-source {
+      left: -6px;
+      top: -60px;
+      width: 864px;
+      height: 1536px;
+      filter: saturate(.82) contrast(1.1) brightness(.86);
+    }
+    .brand-circuit { display: none; }
+
+    .runtime-stack {
+      position: relative;
+      display: block;
+      width: 430px;
+      height: 210px;
+      min-width: 430px;
+      overflow: visible;
+    }
+    .runtime-traces { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; }
+    .runtime-traces path { fill: none; stroke: #416d75; stroke-width: 1.3; vector-effect: non-scaling-stroke; }
+    .runtime-traces path.runtime-signal { stroke: #48cbc7; stroke-dasharray: 3 11; animation: trace-flow 6s linear infinite; }
+    .runtime-traces circle { fill: #071519; stroke: #5cabb0; stroke-width: 1.2; }
+    .runtime-openai-card {
+      position: absolute;
+      z-index: 2;
+      top: 8px;
+      left: 12px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      width: 172px;
+      min-height: 72px;
+      padding: 10px 12px;
+      border: 1px solid #50656d;
+      border-radius: 10px;
+      background: linear-gradient(145deg, rgba(67,83,92,.88), rgba(18,36,43,.92));
+      box-shadow: 0 10px 22px rgba(0,0,0,.22), inset 0 1px rgba(255,255,255,.08);
+    }
+    .runtime-openai-card .openai-blossom { width: 42px; height: 42px; color: #eef6f7; }
+    .runtime-openai-card > div { min-width: 0; }
+    .runtime-openai-card .openai-wordmark { display: block; width: 90px; height: 26px; color: #eef6f7; }
+    .runtime-openai-card span { display: block; margin-top: 3px; color: #a8bbc0; font: 700 10px/1 var(--mono); }
+    .runtime-gate {
+      position: absolute;
+      z-index: 3;
+      top: 76px;
+      left: 166px;
+      display: grid;
+      place-items: center;
+      width: 58px;
+      height: 49px;
+      border: 2px solid #52d9d6;
+      border-radius: 6px 20px 20px 6px;
+      background: rgba(11,48,55,.92);
+      color: #a6fbf7;
+      font: 900 15px/1 var(--mono);
+    }
+    .runtime-chip.codex-core {
+      position: absolute;
+      z-index: 3;
+      top: 39px;
+      right: 17px;
+      width: 112px;
+      height: 112px;
+      padding: 12px;
+      border: 8px double #44717b;
+      border-radius: 8px;
+      background: linear-gradient(145deg, #173b45, #0a1b21);
+      opacity: 1;
+      box-shadow: 0 0 0 1px #77c9cd, 0 12px 24px rgba(0,0,0,.28);
+    }
+    .runtime-chip.codex-core::before {
+      content: "";
+      position: absolute;
+      inset: -13px;
+      z-index: -1;
+      background:
+        repeating-linear-gradient(90deg, transparent 0 9px, #63858b 9px 12px, transparent 12px 18px) top/100% 7px no-repeat,
+        repeating-linear-gradient(90deg, transparent 0 9px, #63858b 9px 12px, transparent 12px 18px) bottom/100% 7px no-repeat,
+        repeating-linear-gradient(0deg, transparent 0 9px, #63858b 9px 12px, transparent 12px 18px) left/7px 100% no-repeat,
+        repeating-linear-gradient(0deg, transparent 0 9px, #63858b 9px 12px, transparent 12px 18px) right/7px 100% no-repeat;
+    }
+    .runtime-chip.codex-core .codex-mark { width: 42px; height: 42px; }
+    .runtime-chip.codex-core span { margin-top: 4px; color: #b6f5f1; font: 900 12px/1 var(--mono); }
+    .runtime-chip.codex-core small { margin-top: 4px; color: #6eb6b6; font: 800 8px/1 var(--mono); }
+    .model-core, .agent-core {
+      position: absolute;
+      z-index: 2;
+      display: grid;
+      place-items: center;
+      border: 5px double #394f55;
+      border-radius: 5px;
+      background: #111e22;
+      color: #d6e5e6;
+      box-shadow: 0 9px 18px rgba(0,0,0,.22);
+      font: 900 13px/1 var(--mono);
+    }
+    .model-core { left: 222px; bottom: 2px; width: 68px; height: 60px; }
+    .agent-core { right: 4px; bottom: 8px; width: 54px; height: 46px; color: #9bb2b6; font-size: 10px; }
+    .model-core small, .agent-core small { display: block; color: #789297; font-size: 8px; }
+
+    main { display: flex; flex-direction: column; }
+    .hero { order: 1; grid-template-columns: 1fr; min-height: 246px; padding: 0 14px 28px; }
+    .hero > div { max-width: 910px; }
+    .hero h1 { max-width: 900px; margin-top: 12px; font-size: clamp(52px, 6.4vw, 82px); }
+    .hero .lead { max-width: 820px; }
+    .hero-proof { display: none; }
+    .quick-nav { order: 2; margin-bottom: 0; border-color: #4a6f76; background: rgba(31,50,56,.72); }
+    .quick-nav a { font-size: 13px; }
+    .quick-nav .nav-studio { margin-left: 0; border: 1px solid #34545b; background: rgba(8,22,26,.7); color: #83b0b4; }
+
+    #mission-studio { order: 3; }
+    #missions-section { order: 4; }
+    #control-room { order: 5; }
+    #system-status { order: 6; }
+    #runs-section { order: 7; }
+    .command-dock { order: 8; }
+    .control-room {
+      padding: 20px;
+      border-color: #54b7b6;
+      background: rgba(12,30,35,.68);
+      box-shadow: inset 0 0 0 1px rgba(84,183,182,.13), 0 0 24px rgba(35,128,130,.08);
+    }
+    .control-room .section-head { padding: 0 2px; }
+    .flow-board { min-height: 210px; margin-bottom: 12px; border-color: #315860; background-color: rgba(7,20,24,.7); }
+    .flow-grid { gap: 8px; padding: 34px 14px 16px; }
+    .flow-step {
+      min-height: 108px;
+      padding: 12px;
+      border-radius: 6px;
+      background: linear-gradient(145deg, rgba(24,70,72,.72), rgba(21,43,53,.78));
+    }
+    .flow-step:nth-child(2), .flow-step:nth-child(4) { background: linear-gradient(145deg, rgba(24,63,72,.7), rgba(31,49,72,.8)); }
+    .flow-step::before { top: -17px; }
+    .flow-context { display: none; }
+    .tamper-branch { margin-bottom: 12px; }
+    .integrity-alert {
+      position: relative;
+      isolation: isolate;
+      overflow: hidden;
+      min-height: 132px;
+      border-color: #6d343c;
+      background: linear-gradient(135deg, rgba(60,18,24,.72), rgba(21,15,19,.9));
+    }
+    .integrity-alert > div:not(.failure-gates) { position: relative; z-index: 2; }
+    .alert-circuit { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; opacity: .32; }
+    .alert-circuit path { fill: none; stroke: #ff6974; stroke-width: 1.15; vector-effect: non-scaling-stroke; }
+    .alert-circuit circle { fill: #271116; stroke: #ff6974; stroke-width: 1.2; }
+    .failure-gates { position: absolute; z-index: 1; inset: 0; pointer-events: none; }
+    .failure-gates span {
+      position: absolute;
+      top: 45px;
+      display: grid;
+      place-items: center;
+      width: 50px;
+      height: 42px;
+      border: 2px solid #ff6974;
+      border-radius: 5px 18px 18px 5px;
+      background: rgba(71,19,27,.85);
+      color: #ff9da4;
+      font: 900 11px/1 var(--mono);
+    }
+    .failure-gates span:first-child { left: 43%; }
+    .failure-gates span:last-child { left: 53%; }
+    .integrity-alert.verified { background: linear-gradient(135deg, rgba(12,48,38,.72), rgba(8,24,22,.92)); }
+    .integrity-alert.verified .alert-circuit { opacity: .16; }
+    .integrity-alert.verified .alert-circuit path, .integrity-alert.verified .alert-circuit circle { stroke: #68f79a; }
+    .integrity-alert.verified .failure-gates span { border-color: #4aa66a; background: rgba(13,53,38,.72); color: #8af8ad; }
+    .integrity-alert.failed .alert-circuit { opacity: .7; }
+
+    .stats { margin-top: 10px; border-color: #35545b; border-radius: 9px; background: rgba(7,18,22,.7); }
+    .stat { min-height: 86px; padding: 15px 17px; }
+    .stat-label::before { box-shadow: none; }
+
+    #missions-section { margin-top: 28px; }
+    #missions-section .section-head { margin-bottom: 14px; }
+    .missions {
+      position: relative;
+      isolation: isolate;
+      gap: 26px;
+      padding: 28px 22px;
+      border: 1px solid rgba(57,90,97,.46);
+      border-radius: 10px;
+      background:
+        linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px),
+        linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+        rgba(4,15,18,.48);
+      background-size: 18px 18px, 18px 18px, auto;
+    }
+    .missions::before {
+      content: "";
+      position: absolute;
+      z-index: 0;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 14px;
+      border-top: 1px solid #3d7a7c;
+      border-bottom: 1px solid #274f53;
+      background: repeating-linear-gradient(90deg, transparent 0 13px, rgba(71,175,176,.7) 13px 16px, transparent 16px 28px);
+    }
+    .missions::after {
+      content: "MISSION BUS";
+      position: absolute;
+      z-index: 3;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%,-50%);
+      padding: 7px 10px;
+      border: 1px solid #4ca5a5;
+      border-radius: 4px 14px 14px 4px;
+      background: #0b2e33;
+      color: #89e5e0;
+      font: 900 8px/1 var(--mono);
+      letter-spacing: .08em;
+    }
+    #missions .card {
+      isolation: isolate;
+      z-index: 1;
+      margin: 0 7px;
+      padding: 21px;
+      border: 2px solid #456a70;
+      border-radius: 5px;
+      background: linear-gradient(145deg, rgba(18,39,44,.98), rgba(6,18,22,.98));
+      box-shadow: inset 0 0 0 1px rgba(134,181,185,.12), 0 12px 24px rgba(0,0,0,.2);
+    }
+    #missions .card > * { position: relative; z-index: 2; }
+    #missions .card::before {
+      content: "";
+      position: absolute;
+      z-index: 3;
+      top: 11px;
+      left: 11px;
+      width: 8px;
+      height: 8px;
+      border: 1px solid #7ca3a7;
+      border-radius: 50%;
+      background: #071316;
+    }
+    #missions .card::after {
+      content: "";
+      position: absolute;
+      z-index: -1;
+      inset: -13px;
+      pointer-events: none;
+      background:
+        repeating-linear-gradient(90deg, transparent 0 12px, #6c8589 12px 16px, transparent 16px 25px) top/100% 9px no-repeat,
+        repeating-linear-gradient(90deg, transparent 0 12px, #6c8589 12px 16px, transparent 16px 25px) bottom/100% 9px no-repeat,
+        repeating-linear-gradient(0deg, transparent 0 12px, #6c8589 12px 16px, transparent 16px 25px) left/9px 100% no-repeat,
+        repeating-linear-gradient(0deg, transparent 0 12px, #6c8589 12px 16px, transparent 16px 25px) right/9px 100% no-repeat;
+    }
+    #missions .card h3 { padding-left: 4px; font-family: var(--mono); letter-spacing: -.035em; }
+    #missions .meta div { border-radius: 3px; background: rgba(4,14,17,.8); }
+    #missions button { border-radius: 4px; }
+
+    #mission-studio {
+      margin-top: 18px;
+      border-color: #46777d;
+      background:
+        linear-gradient(90deg, rgba(255,255,255,.014) 1px, transparent 1px),
+        linear-gradient(rgba(255,255,255,.014) 1px, transparent 1px),
+        rgba(5,17,20,.72);
+      background-size: 18px 18px, 18px 18px, auto;
+    }
+    #mission-studio .studio-zones { align-items: stretch; }
+    #mission-studio .agent-zone {
+      position: relative;
+      min-height: 182px;
+      overflow: hidden;
+      border-color: rgba(62,107,113,.5);
+      background: linear-gradient(145deg, rgba(7,24,28,.72), rgba(4,14,18,.88));
+    }
+    .agent-dock-state {
+      position: absolute;
+      z-index: 5;
+      inset: 42px 18px 18px;
+      display: grid;
+      place-content: center;
+      gap: 8px;
+      border: 1px dashed #3a6d72;
+      border-radius: 7px;
+      background:
+        repeating-linear-gradient(90deg, transparent 0 24px, rgba(68,132,136,.08) 24px 25px),
+        rgba(4,16,19,.76);
+      color: #78a6aa;
+      text-align: center;
+      transition: opacity .24s ease, transform .35s ease, visibility 0s linear .35s;
+    }
+    .agent-dock-state strong { color: #9adbd8; font: 900 11px/1 var(--mono); letter-spacing: .14em; }
+    .agent-dock-state span { font: 750 8px/1.4 var(--mono); letter-spacing: .09em; text-transform: uppercase; }
+    #mission-studio:not([data-run-state="idle"]) .agent-dock-state {
+      opacity: 0;
+      visibility: hidden;
+      transform: translateX(18%);
+      transition-delay: 0s;
+    }
+    #mission-studio[data-run-state="idle"] .agent-pipeline {
+      opacity: 0;
+      visibility: hidden;
+      transform: translate3d(-24%,0,0) scale(.92);
+      filter: blur(5px);
+      pointer-events: none;
+    }
+    #mission-studio:not([data-run-state="idle"]) .agent-pipeline {
+      opacity: 1;
+      visibility: visible;
+      transform: none;
+      filter: none;
+      transition: opacity .35s ease, transform .7s cubic-bezier(.2,.8,.2,1), filter .45s ease;
+    }
+    #mission-studio:not([data-run-state="idle"]) .studio-agent {
+      animation: agent-deploy .55s cubic-bezier(.2,.8,.2,1) both;
+    }
+    #mission-studio:not([data-run-state="idle"]) .studio-agent:nth-child(2) { animation-delay: .06s; }
+    #mission-studio:not([data-run-state="idle"]) .studio-agent:nth-child(3) { animation-delay: .12s; }
+    #mission-studio:not([data-run-state="idle"]) .studio-agent:nth-child(4) { animation-delay: .18s; }
+    #mission-studio:not([data-run-state="idle"]) .studio-agent:nth-child(5) { animation-delay: .24s; }
+    #mission-studio:not([data-run-state="idle"]) .studio-agent:nth-child(6) { animation-delay: .30s; }
+    #mission-studio:not([data-run-state="idle"]) .studio-agent:nth-child(7) { animation-delay: .36s; }
+    @keyframes agent-deploy {
+      from { opacity: 0; transform: translateX(-28px) scale(.92); }
+      to { opacity: 1; transform: translateX(0) scale(1); }
+    }
+    #mission-studio .agent-pipeline {
+      transition: opacity .22s ease, transform .38s ease, filter .3s ease, visibility 0s linear .38s;
+    }
+    #mission-studio .agent-pipeline::before {
+      height: 2px;
+      background: repeating-linear-gradient(90deg, #27565b 0 10px, #5ab9b7 10px 15px, #27565b 15px 28px);
+      background-size: 28px 2px;
+    }
+    #mission-studio:not([data-run-state="idle"]) .agent-pipeline::before { animation: agent-bus 1s linear infinite; }
+    @keyframes agent-bus { to { background-position-x: 28px; } }
+    #mission-studio .studio-agent {
+      border: 2px solid rgba(66,96,104,.34);
+      border-radius: 4px;
+      background:
+        repeating-linear-gradient(90deg, transparent 0 8px, rgba(116,151,155,.48) 8px 10px, transparent 10px 16px) top/100% 5px no-repeat,
+        repeating-linear-gradient(90deg, transparent 0 8px, rgba(116,151,155,.48) 8px 10px, transparent 10px 16px) bottom/100% 5px no-repeat,
+        linear-gradient(145deg, rgba(15,35,39,.96), rgba(5,16,19,.98));
+      box-shadow: inset 0 0 0 1px rgba(133,180,183,.06);
+    }
+    #mission-studio .studio-agent::before {
+      content: "";
+      position: absolute;
+      z-index: 0;
+      inset: 4px;
+      pointer-events: none;
+      background: linear-gradient(180deg, transparent 0 35%, rgba(54,240,228,.2) 50%, transparent 65%);
+      background-size: 100% 36px;
+      opacity: 0;
+    }
+    #mission-studio .studio-agent[data-status="working"]::before {
+      opacity: 1;
+      animation: agent-chip-scan .85s linear infinite;
+    }
+    @keyframes agent-chip-scan { from { background-position-y: -36px; } to { background-position-y: 136px; } }
+    #mission-studio .studio-agent[data-status="working"] {
+      border-color: #4e8fff;
+      box-shadow: inset 0 0 18px rgba(78,143,255,.08);
+    }
+    #mission-studio .studio-agent[data-status="handing_off"] { border-color: #36f0e4; }
+    #mission-studio .studio-agent[data-status="completed"] { border-color: #3a8c62; }
+    #mission-studio .trust-zone { position: relative; overflow: hidden; }
+    #mission-studio .trust-zone::before {
+      content: "";
+      position: absolute;
+      z-index: 3;
+      left: -15px;
+      top: 50%;
+      width: 28px;
+      height: 2px;
+      background: repeating-linear-gradient(90deg, #347170 0 5px, #7ee3dc 5px 9px);
+      animation: agent-bus .8s linear infinite;
+    }
+    #mission-studio .trust-gate { position: relative; overflow: hidden; }
+    #mission-studio .trust-gate::before {
+      content: "";
+      position: absolute;
+      inset: -50% 0 auto;
+      height: 46%;
+      background: linear-gradient(180deg, transparent, rgba(54,240,228,.1), transparent);
+      opacity: 0;
+    }
+    #mission-studio[data-run-state="active"] .trust-gate::before,
+    #mission-studio[data-run-state="deploying"] .trust-gate::before { opacity: 1; animation: gate-scan 1.4s linear infinite; }
+    @keyframes gate-scan { to { transform: translateY(320%); } }
+    #mission-studio .studio-bottom {
+      overflow: hidden;
+      max-height: 440px;
+      opacity: 1;
+      transition: max-height .55s ease, opacity .3s ease, margin .45s ease;
+    }
+    #mission-studio[data-run-state="idle"] .studio-bottom { max-height: 0; margin-top: 0; opacity: 0; }
+    #mission-studio[data-run-state="complete"] .studio-progress > span { background: linear-gradient(90deg,#38d892,#68f79a); box-shadow: none; }
+    #mission-studio[data-run-state="failed"] .studio-progress > span { background: linear-gradient(90deg,#a52e3c,#ff5d68); box-shadow: none; }
+
+    #runs-section { margin-top: 28px; }
+    .proof-console, .evidence { border-radius: 8px; background: rgba(5,16,19,.68); }
+    .command-dock { border-color: #65809b; background: rgba(42,56,73,.72); }
+
+    @media (max-width: 900px) {
+      .masthead { grid-template-columns: 1fr; min-height: 0; }
+      .brand-lockup { width: 560px; max-width: 100%; }
+      .runtime-stack { justify-self: start; margin-top: 2px; }
+      .hero { padding-top: 18px; }
+      .failure-gates { display: none; }
+      .missions::after { display: none; }
+    }
+    @media (max-width: 640px) {
+      .review-strip > span { max-width: 150px; }
+      .masthead { padding-top: 8px; }
+      .brand-lockup { height: 152px; }
+      .brand-mask { width: 470px; height: 152px; }
+      .brand-source { width: 720px; height: 1280px; top: -50px; }
+      .runtime-stack { width: 430px; height: 170px; transform: scale(.76); transform-origin: left top; margin-bottom: -38px; }
+      .hero h1 { font-size: clamp(42px, 12vw, 58px); }
+      .quick-nav .nav-studio { display: none; }
+      .control-room { padding: 13px; }
+      .missions { grid-template-columns: 1fr; gap: 34px; padding: 24px 18px; }
+      .missions::before { top: 0; bottom: 0; left: 50%; right: auto; width: 12px; height: auto; border: 0; border-left: 1px solid #3d7a7c; border-right: 1px solid #274f53; }
+      #missions .card { margin: 0 8px; }
+    }
+
     @media (prefers-reduced-motion: reduce) {
       html { scroll-behavior: auto; }
       *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -661,8 +1173,10 @@ _DASHBOARD = r'''<!doctype html>
   </svg>
   <svg class="board-traces" viewBox="0 0 1440 2400" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
     <path class="trace" d="M0 180H160Q190 180 190 210V420Q190 450 220 450H390"/>
+    <path class="trace secondary" d="M0 198H142Q172 198 172 228V438Q172 468 202 468H390"/>
     <path class="trace hot" d="M0 220H120Q150 220 150 250V650Q150 680 180 680H390"/>
     <path class="trace" d="M1440 150H1270Q1240 150 1240 180V390Q1240 420 1210 420H1040"/>
+    <path class="trace secondary" d="M1440 168H1288Q1258 168 1258 198V408Q1258 438 1228 438H1040"/>
     <path class="trace hot" d="M1440 580H1320Q1290 580 1290 610V940Q1290 970 1260 970H1110"/>
     <path class="trace" d="M0 1090H120Q150 1090 150 1120V1490Q150 1520 180 1520H330"/>
     <path class="trace fail" d="M1440 1260H1330Q1300 1260 1300 1290V1680Q1300 1710 1270 1710H1120"/>
@@ -671,11 +1185,14 @@ _DASHBOARD = r'''<!doctype html>
     <circle class="via" cx="390" cy="450" r="6"/><circle class="via" cx="390" cy="680" r="6"/>
     <circle class="via" cx="1040" cy="420" r="6"/><circle class="via" cx="1110" cy="970" r="6"/>
     <circle class="via" cx="330" cy="1520" r="6"/><circle class="via" cx="1120" cy="1710" r="6"/>
+    <circle class="via-core" cx="390" cy="450" r="2"/><circle class="via-core" cx="390" cy="680" r="2"/>
+    <circle class="via-core" cx="1040" cy="420" r="2"/><circle class="via-core" cx="1110" cy="970" r="2"/>
+    <circle class="via-core" cx="330" cy="1520" r="2"/><circle class="via-core" cx="1120" cy="1710" r="2"/>
   </svg>
 
   <div class="shell">
     <div class="review-strip">
-      <span><strong>APR Mission Control</strong> · runtime-backed evidence interface</span>
+      <span><strong>APR Mission Control</strong> · live runtime · evidence-backed interface</span>
       <div class="strip-statuses">
         <span class="micro-status" id="ready-status">Checking</span>
         <span class="micro-status good" id="verified-status">Verifier</span>
@@ -684,15 +1201,29 @@ _DASHBOARD = r'''<!doctype html>
     </div>
 
     <header class="masthead">
-      <div class="brand-lockup">
-        <img class="brand-source" src="__OSA_BRAND_DATA__" width="864" height="1536" alt="OsaTechGPT · Proof Systems · Mission Control">
-        <span class="brand-source-label">approved OsaTechGPT lockup</span>
+      <div class="brand-lockup" role="img" aria-label="OsaTechGPT">
+        <div class="brand-mask"><img class="brand-source" src="__OSA_BRAND_DATA__" width="864" height="1536" alt="OsaTechGPT mask logo"></div>
+        <svg class="brand-circuit" viewBox="0 0 410 148" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M128 38H190V20H282"/><path d="M128 74H222V128H356"/><path d="M128 110H174V92H310V114H404"/>
+          <path class="signal" d="M128 74H222V128H356"/>
+          <circle cx="190" cy="20" r="4"/><circle cx="222" cy="128" r="4"/><circle cx="310" cy="92" r="4"/><circle cx="404" cy="114" r="4"/>
+        </svg>
       </div>
       <div class="runtime-stack" aria-label="Runtime providers">
-        <div class="runtime-chip openai-chip"><svg class="openai-wordmark" role="img" aria-label="OpenAI"><use href="#openai-wordmark"></use></svg><small>official wordmark · provider</small></div>
-        <div class="runtime-chip"><svg aria-hidden="true"><use href="#openai-blossom"></use></svg><div><div class="runtime-name">ChatGPT</div><small>official mark · operator</small></div></div>
-        <div class="runtime-chip primary"><svg class="codex-mark" role="img" aria-label="Codex"><use href="#codex-app-mark"></use></svg><div><div class="runtime-name">Codex</div><small>official app mark · build runtime</small></div></div>
-        <div class="marks-note">OpenAI, ChatGPT and Codex marks belong to OpenAI · APR <span id="runtime-version">v—</span></div>
+        <svg class="runtime-traces" viewBox="0 0 430 210" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M18 38H112V76H176"/><path d="M18 54H96V92H176"/><path d="M176 84H238V56H408"/><path d="M176 92H254V104H408"/><path d="M176 100H224V170H292"/><path d="M314 70V26H408"/><path d="M314 142V190H408"/>
+          <path class="runtime-signal" d="M18 92H176V100H224V170H292"/>
+          <circle cx="176" cy="84" r="4"/><circle cx="176" cy="100" r="4"/><circle cx="224" cy="170" r="4"/><circle cx="314" cy="70" r="4"/><circle cx="314" cy="142" r="4"/>
+        </svg>
+        <div class="runtime-openai-card" role="img" aria-label="OpenAI and ChatGPT runtime">
+          <svg class="openai-blossom" aria-hidden="true"><use href="#openai-blossom"></use></svg>
+          <div><svg class="openai-wordmark" aria-hidden="true"><use href="#openai-wordmark"></use></svg><span>ChatGPT</span></div>
+        </div>
+        <div class="runtime-gate" aria-hidden="true">AND</div>
+        <div class="runtime-chip primary codex-core" role="img" aria-label="Codex build runtime"><svg class="codex-mark" aria-hidden="true"><use href="#codex-app-mark"></use></svg><span>CODEX</span><small>v0.1.3</small></div>
+        <div class="model-core" role="img" aria-label="GPT 5.6 model">GPT<small>5.6</small></div>
+        <div class="agent-core" aria-hidden="true">AI<small>AGENT</small></div>
+        <span class="runtime-version-note">APR <span id="runtime-version">v—</span></span>
       </div>
     </header>
 
@@ -711,26 +1242,26 @@ _DASHBOARD = r'''<!doctype html>
       </section>
 
       <nav class="quick-nav" aria-label="Mission Control sections">
-        <a href="#mission-studio">Mission Studio</a><span class="slash">/</span>
         <a href="#missions-section">Missions</a><span class="slash">/</span>
         <a href="#runs-section">Runs</a><span class="slash">/</span>
-        <a href="#control-room">Control Room</a><span class="slash">/</span>
+        <a href="#system-status">gVisor</a><span class="slash">/</span>
         <a href="#evidence">Latest Proof</a>
-        <div class="nav-tools"><button class="icon-button" type="button" data-refresh aria-label="Refresh evidence">↻</button></div>
+        <div class="nav-tools"><a class="nav-studio" href="#mission-studio">Mission Studio</a><button class="icon-button" type="button" data-refresh aria-label="Refresh evidence">↻</button></div>
       </nav>
 
-      <section class="studio" id="mission-studio" aria-labelledby="studio-title">
+      <section class="studio" id="mission-studio" data-run-state="idle" aria-labelledby="studio-title">
         <div class="studio-intro">
           <div>
             <div class="eyebrow">APR MISSION STUDIO</div>
             <h2 id="studio-title">Describe the work. Watch the agents build. Verify the result.</h2>
             <p class="studio-copy">The agent pipeline produces the artifact. APR independently records and verifies the evidence.</p>
           </div>
-          <div class="studio-badges"><span class="studio-badge">FIXTURE MODE</span><span class="studio-badge">NO API KEY</span></div>
+          <div class="studio-badges"><span class="studio-badge" id="studio-provider-badge">FIXTURE MODE</span><span class="studio-badge" id="studio-model-badge">NO API KEY REQUIRED</span></div>
         </div>
         <div class="studio-form">
           <label for="studio-brief">Verified website build brief</label>
           <textarea id="studio-brief" maxlength="2000" placeholder="Create a dark landing page for an AI security company with a hero, three features, and a strong call to action."></textarea>
+          <div class="studio-mode"><label for="studio-provider">Provider</label><select id="studio-provider"><option value="fixture">FIXTURE</option><option value="openai" disabled>LIVE GPT-5.6</option></select><span id="studio-provider-status">FIXTURE · OFFLINE</span></div>
           <button class="studio-preset" id="studio-preset" type="button">Use preset example</button>
           <button class="studio-start" id="studio-start" type="button" disabled>START MISSION</button>
         </div>
@@ -742,11 +1273,15 @@ _DASHBOARD = r'''<!doctype html>
         <div class="studio-zones">
           <div class="agent-zone">
             <div class="zone-label"><span>AGENT ORCHESTRATION</span><span>Produces the work</span></div>
+            <div class="agent-dock-state" aria-hidden="true"><strong>7 AGENTS DOCKED</strong><span>Start mission to deploy the pipeline</span></div>
             <div class="agent-pipeline" id="studio-agents">
               <article class="studio-agent" data-studio-agent="planner" data-status="ready"><span class="agent-index">01</span><h3>MISSION PLANNER</h3><span class="agent-status">READY</span><code class="agent-hash">No output hash</code><span class="handoff-packet"></span></article>
               <article class="studio-agent" data-studio-agent="research" data-status="ready"><span class="agent-index">02</span><h3>RESEARCH AGENT</h3><span class="agent-status">READY</span><code class="agent-hash">No output hash</code><span class="handoff-packet"></span></article>
-              <article class="studio-agent" data-studio-agent="builder" data-status="ready"><span class="agent-index">03</span><h3>WEBSITE BUILDER</h3><span class="agent-status">READY</span><code class="agent-hash">No output hash</code><span class="handoff-packet"></span></article>
-              <article class="studio-agent" data-studio-agent="qa" data-status="ready"><span class="agent-index">04</span><h3>QA AGENT</h3><span class="agent-status">READY</span><code class="agent-hash">No output hash</code><span class="handoff-packet"></span></article>
+              <article class="studio-agent" data-studio-agent="content" data-status="ready"><span class="agent-index">03</span><h3>CONTENT ARCHITECT</h3><span class="agent-status">READY</span><code class="agent-hash">No output hash</code><span class="handoff-packet"></span></article>
+              <article class="studio-agent" data-studio-agent="html_builder" data-status="ready"><span class="agent-index">04</span><h3>HTML BUILDER</h3><span class="agent-status">READY</span><code class="agent-hash">No output hash</code><span class="handoff-packet"></span></article>
+              <article class="studio-agent" data-studio-agent="css_builder" data-status="ready"><span class="agent-index">05</span><h3>CSS DESIGNER</h3><span class="agent-status">READY</span><code class="agent-hash">No output hash</code><span class="handoff-packet"></span></article>
+              <article class="studio-agent" data-studio-agent="data_builder" data-status="ready"><span class="agent-index">06</span><h3>DATA BUILDER</h3><span class="agent-status">READY</span><code class="agent-hash">No output hash</code><span class="handoff-packet"></span></article>
+              <article class="studio-agent" data-studio-agent="qa" data-status="ready"><span class="agent-index">07</span><h3>QA AGENT</h3><span class="agent-status">READY</span><code class="agent-hash">No output hash</code><span class="handoff-packet"></span></article>
             </div>
           </div>
           <div class="trust-zone">
@@ -756,7 +1291,7 @@ _DASHBOARD = r'''<!doctype html>
         </div>
         <div class="studio-bottom">
           <div class="studio-timeline"><div class="zone-label"><span>BACKEND EVENT TIMELINE</span><span id="studio-event-count">0 events</span></div><ol id="studio-events"><li><time>—</time><span>Awaiting mission start</span></li></ol></div>
-          <div class="studio-result" id="studio-result"><div class="zone-label"><span>INDEPENDENT VERIFIER</span><span>Recomputes proof integrity</span></div><h3 class="result-title" id="studio-result-title">AWAITING ARTIFACT</h3><div class="studio-result-grid"><div><small>MISSION</small><strong id="studio-mission-result">—</strong></div><div><small>PROOF</small><strong id="studio-proof-result">—</strong></div><div><small>ANCHOR</small><strong id="studio-anchor-result">UNANCHORED</strong></div></div></div>
+          <div class="studio-result" id="studio-result"><div class="zone-label"><span>INDEPENDENT VERIFIER</span><span>Recomputes proof integrity</span></div><h3 class="result-title" id="studio-result-title">AWAITING ARTIFACT</h3><div class="studio-result-grid"><div><small>MISSION</small><strong id="studio-mission-result">—</strong></div><div><small>PROOF</small><strong id="studio-proof-result">—</strong></div><div><small>ANCHOR</small><strong id="studio-anchor-result">UNANCHORED</strong></div></div><a class="studio-preview-link" id="studio-preview-link" href="#" target="_blank" rel="noopener" hidden>OPEN GENERATED SITE ↗</a></div>
         </div>
       </section>
 
@@ -767,13 +1302,18 @@ _DASHBOARD = r'''<!doctype html>
         </div>
         <div class="flow-board" id="flow-board" data-state="idle" aria-label="Backend-driven proof flow">
           <svg class="flow-wires" viewBox="0 0 1000 278" preserveAspectRatio="none" aria-hidden="true">
-            <path class="bus-base" d="M108 52V72H892V52"/>
+            <path class="bus-base" d="M108 15V72H892V15"/>
             <path class="bus-base-thin" d="M108 72H892"/>
+            <path class="bus-base-thin" d="M108 80H892"/>
+            <path class="bus-tap" d="M304 15V72M500 15V72M696 15V72M108 80V192H304M892 80V192H696"/>
             <path class="bus-progress" d="M108 72H892"/>
             <path class="tamper-wire" d="M696 72V216H962"/>
             <circle class="flow-via" cx="108" cy="72" r="6"/><circle class="flow-via" cx="304" cy="72" r="6"/>
             <circle class="flow-via" cx="500" cy="72" r="6"/><circle class="flow-via" cx="696" cy="72" r="6"/>
             <circle class="flow-via" cx="892" cy="72" r="6"/><circle class="flow-via" cx="696" cy="216" r="6"/>
+            <circle class="flow-via-core" cx="108" cy="72" r="2"/><circle class="flow-via-core" cx="304" cy="72" r="2"/>
+            <circle class="flow-via-core" cx="500" cy="72" r="2"/><circle class="flow-via-core" cx="696" cy="72" r="2"/>
+            <circle class="flow-via-core" cx="892" cy="72" r="2"/><circle class="flow-via-core" cx="696" cy="216" r="2"/>
             <circle class="flow-packet" r="6"><animateMotion dur="2.4s" repeatCount="indefinite" path="M108 72H892"/></circle>
           </svg>
           <div class="flow-grid" id="flow-grid">
@@ -796,6 +1336,11 @@ _DASHBOARD = r'''<!doctype html>
           </div>
         </div>
         <div class="integrity-alert" id="integrity-alert" aria-live="polite">
+          <svg class="alert-circuit" viewBox="0 0 1000 132" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M12 35H430V54H505"/><path d="M12 91H390V72H505"/><path d="M555 63H646V35H730"/><path d="M555 63H646V99H730"/>
+            <circle cx="430" cy="54" r="4"/><circle cx="390" cy="72" r="4"/><circle cx="646" cy="35" r="4"/><circle cx="646" cy="99" r="4"/>
+          </svg>
+          <div class="failure-gates" aria-hidden="true"><span>AND</span><span>AND</span></div>
           <div>
             <div class="alert-kicker" id="alert-kicker">Integrity monitor</div>
             <div class="alert-title" id="alert-title">AWAITING EVIDENCE</div>
@@ -809,7 +1354,7 @@ _DASHBOARD = r'''<!doctype html>
         </div>
       </section>
 
-      <section class="stats" aria-label="System status">
+      <section class="stats" id="system-status" aria-label="System status">
         <div class="stat"><div class="stat-label">Missions</div><div class="stat-value" id="mission-count">—</div></div>
         <div class="stat"><div class="stat-label">Runs</div><div class="stat-value" id="run-count">—</div></div>
         <div class="stat"><div class="stat-label">gVisor</div><div class="stat-value" id="gvisor-status">—</div></div>
@@ -863,19 +1408,32 @@ _DASHBOARD = r'''<!doctype html>
 
     const studioBrief = $('#studio-brief');
     const studioStart = $('#studio-start');
+    const studioProvider = $('#studio-provider');
+    let studioOpenAIConfigured = false;
+    let studioOpenAIModel = 'gpt-5.6';
     const studioPreset = 'Create a dark landing page for an AI security company with a hero section, three product features, and a strong call to action.';
     const normalizedStudioBrief = () => studioBrief.value.replace(/\s+/g, ' ').trim();
 
     function validateStudioBrief() {
       const value = normalizedStudioBrief();
-      studioStart.disabled = Boolean(studioSessionId) || value.length < 10 || value.length > 2000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(studioBrief.value);
+      const liveUnavailable = studioProvider.value === 'openai' && !studioOpenAIConfigured;
+      studioStart.disabled = Boolean(studioSessionId) || liveUnavailable || value.length < 10 || value.length > 2000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(studioBrief.value);
+      $('#studio-provider-badge').textContent = studioProvider.value === 'openai' ? 'LIVE OPENAI' : 'FIXTURE MODE';
+      $('#studio-model-badge').textContent = studioProvider.value === 'openai' ? studioOpenAIModel : 'NO API KEY REQUIRED';
+      $('#studio-provider-status').textContent = studioProvider.value === 'openai'
+        ? (studioOpenAIConfigured ? `${studioOpenAIModel} · SERVER KEY READY` : 'OPENAI KEY ABSENT')
+        : 'FIXTURE · OFFLINE';
     }
 
     function renderStudio(session) {
+      const studioNode = $('#mission-studio');
+      studioNode.dataset.runState = session.state === 'completed' ? 'complete' : (session.state === 'failed' ? 'failed' : 'active');
       $('#studio-progress').style.width = `${session.progress || 0}%`;
       $('#studio-current').textContent = `${String(session.current_stage || session.state || 'ready').replaceAll('_',' ').toUpperCase()} · ${session.progress || 0}%`;
       $('#studio-hash').textContent = session.current_output_hash || 'No stage output recorded';
       $('#studio-apr-status').textContent = session.apr?.status || 'AWAITING ARTIFACT';
+      $('#studio-provider-badge').textContent = session.provider === 'openai' ? 'LIVE OPENAI' : 'FIXTURE MODE';
+      $('#studio-model-badge').textContent = session.model || (session.provider === 'openai' ? studioOpenAIModel : 'fixture-v1');
       (session.agents || []).forEach(agent => {
         const card = document.querySelector(`[data-studio-agent="${agent.stage_id}"]`);
         if (!card) return;
@@ -885,7 +1443,7 @@ _DASHBOARD = r'''<!doctype html>
       });
       const events = session.events || [];
       $('#studio-event-count').textContent = `${events.length} event${events.length === 1 ? '' : 's'}`;
-      $('#studio-events').innerHTML = events.map(item => `<li><time>${esc(String(item.timestamp || '').slice(11,19) || '—')}</time><span>${esc(item.type)}${item.output_hash ? ` · ${esc(shortHash(item.output_hash,16))}` : ''}</span></li>`).join('') || '<li><time>—</time><span>Awaiting mission start</span></li>';
+      $('#studio-events').innerHTML = events.map(item => `<li><time>${esc(String(item.timestamp || '').slice(11,19) || '—')}</time><span>${esc(item.type)}${item.output_hash ? ` · ${esc(shortHash(item.output_hash,16))}` : ''}${item.contract_reason ? ` · ${esc(item.contract_reason)}` : ''}</span></li>`).join('') || '<li><time>—</time><span>Awaiting mission start</span></li>';
       $('#studio-events').scrollTop = $('#studio-events').scrollHeight;
       $('#studio-mission-result').textContent = session.mission_status || '—';
       $('#studio-proof-result').textContent = session.proof_status || '—';
@@ -893,6 +1451,14 @@ _DASHBOARD = r'''<!doctype html>
       const terminal = session.state === 'completed' || session.state === 'failed';
       $('#studio-result-title').textContent = session.state === 'completed' ? 'ARTIFACT READY' : (session.state === 'failed' ? 'FAILED' : 'AWAITING VERIFIER');
       $('#studio-result').classList.toggle('complete', session.state === 'completed');
+      const previewLink = $('#studio-preview-link');
+      if (session.state === 'completed' && session.apr_run_id) {
+        previewLink.href = `/runs/${encodeURIComponent(session.apr_run_id)}/artifact/site/index.html`;
+        previewLink.hidden = false;
+      } else if (session.state !== 'completed') {
+        previewLink.hidden = true;
+        previewLink.setAttribute('href', '#');
+      }
       if (terminal) {
         window.clearTimeout(studioPollTimer);
         studioPollTimer = null;
@@ -913,18 +1479,22 @@ _DASHBOARD = r'''<!doctype html>
             await refresh();
             await loadEvidence(body.session.apr_run_id, false);
           }
-          toast(`Mission Studio: ${body.session.proof_status || body.session.state}`, body.session.state === 'failed');
+          const diagnostic = body.session.failure_diagnostics;
+          const diagnosticSuffix = diagnostic ? ` [${diagnostic.stage || 'stage'}/${diagnostic.contract_reason || diagnostic.category}${diagnostic.attempt_count ? `, attempt ${diagnostic.attempt_count}` : ''}]` : '';
+          toast(`Mission Studio: ${body.session.error || body.session.proof_status || body.session.state}${diagnosticSuffix}`, body.session.state === 'failed');
           return;
         }
         studioPollTimer = window.setTimeout(pollStudio, 180);
       } catch (error) {
         studioSessionId = null;
+        $('#mission-studio').dataset.runState = 'failed';
         validateStudioBrief();
         toast(error.message, true);
       }
     }
 
     studioBrief.addEventListener('input', validateStudioBrief);
+    studioProvider.addEventListener('change', validateStudioBrief);
     $('#studio-preset').addEventListener('click', () => {
       studioBrief.value = studioPreset;
       validateStudioBrief();
@@ -933,13 +1503,17 @@ _DASHBOARD = r'''<!doctype html>
     studioStart.addEventListener('click', async () => {
       if (studioStart.disabled) return;
       studioStart.disabled = true;
+      $('#mission-studio').dataset.runState = 'deploying';
+      $('#studio-preview-link').hidden = true;
+      $('#studio-preview-link').setAttribute('href', '#');
       try {
-        const body = await api('/api/studio/start', {method:'POST', headers:{'Content-Type':'application/json','X-APR-Token':token}, body:JSON.stringify({mission_type:'verified_website_build',brief:normalizedStudioBrief()})});
+        const body = await api('/api/studio/start', {method:'POST', headers:{'Content-Type':'application/json','X-APR-Token':token}, body:JSON.stringify({mission_type:'verified_website_build',brief:normalizedStudioBrief(),provider:studioProvider.value})});
         studioSessionId = body.session.session_id;
         renderStudio(body.session);
         studioPollTimer = window.setTimeout(pollStudio, 120);
       } catch (error) {
         studioSessionId = null;
+        $('#mission-studio').dataset.runState = 'idle';
         validateStudioBrief();
         toast(error.message, true);
       }
@@ -1091,6 +1665,13 @@ _DASHBOARD = r'''<!doctype html>
     async function refresh() {
       try {
         const data = await api('/api/state');
+        studioOpenAIConfigured = Boolean(data.service.openai_configured);
+        studioOpenAIModel = data.service.mission_studio_openai_model || 'gpt-5.6';
+        const liveOption = studioProvider.querySelector('option[value="openai"]');
+        liveOption.disabled = !studioOpenAIConfigured;
+        if (!studioOpenAIConfigured && studioProvider.value === 'openai') studioProvider.value = 'fixture';
+        liveOption.textContent = `LIVE ${studioOpenAIModel.toUpperCase()}`;
+        validateStudioBrief();
         const ready = Boolean(data.doctor.available);
         const latest = data.runs[0];
         $('#runtime-version').textContent = `v${data.service.version}`;

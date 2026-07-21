@@ -106,10 +106,19 @@ class MissionStudioPackagingTests(unittest.TestCase):
                     "handoff.planner_to_research",
                     "agent.research.started",
                     "agent.research.completed",
-                    "handoff.research_to_builder",
-                    "agent.builder.started",
-                    "agent.builder.completed",
-                    "handoff.builder_to_qa",
+                    "handoff.research_to_content",
+                    "agent.content.started",
+                    "agent.content.completed",
+                    "handoff.content_to_html_builder",
+                    "agent.html_builder.started",
+                    "agent.html_builder.completed",
+                    "handoff.html_builder_to_css_builder",
+                    "agent.css_builder.started",
+                    "agent.css_builder.completed",
+                    "handoff.css_builder_to_data_builder",
+                    "agent.data_builder.started",
+                    "agent.data_builder.completed",
+                    "handoff.data_builder_to_qa",
                     "agent.qa.started",
                     "agent.qa.completed",
                     "handoff.qa_to_apr",
@@ -149,7 +158,7 @@ class MissionStudioPackagingTests(unittest.TestCase):
                 packaged.returncode, 0, packaged.stdout + packaged.stderr
             )
             result = json.loads(packaged.stdout)
-            self.assertEqual(result["event_count"], 17)
+            self.assertEqual(result["event_count"], 26)
             self.assertTrue(result["contract_enforced"])
             self.assertEqual(result["mission_status"], "PASSED")
             self.assertEqual(result["proof_status"], "LOCAL_VERIFIED")

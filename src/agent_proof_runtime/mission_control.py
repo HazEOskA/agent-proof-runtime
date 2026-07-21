@@ -32,6 +32,11 @@ from .mission_studio import (
     MissionStudioManager,
     MissionStudioValidationError,
 )
+from .mission_studio_openai import (
+    DEFAULT_OPENAI_MODEL,
+    MissionStudioOpenAIError,
+    configured_openai_model,
+)
 from .build_week_runtime import ArtifactPolicyError, run_build_week_mission
 from .providers import ProviderError
 from .runtime import RunDirectoryExists, run_mission
@@ -322,12 +327,17 @@ class MissionControl:
         )
 
     def state(self) -> dict[str, Any]:
+        try:
+            studio_openai_model = configured_openai_model()
+        except MissionStudioOpenAIError:
+            studio_openai_model = DEFAULT_OPENAI_MODEL
         return {
             "service": {
                 "name": "Agent Proof Runtime Mission Control",
                 "version": __version__,
                 "trust_boundary": "local-operator",
                 "openai_configured": bool(os.environ.get("OPENAI_API_KEY")),
+                "mission_studio_openai_model": studio_openai_model,
             },
             "doctor": _doctor_summary(),
             "missions": discover_missions(self.config.missions_dir),
@@ -448,8 +458,9 @@ def _handler_factory(control: MissionControl) -> type[BaseHTTPRequestHandler]:
                 )
             else:
                 content_policy = (
-                    "default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; "
-                    "img-src data:; base-uri 'none'; frame-ancestors 'none'; sandbox"
+                    "default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'none'; "
+                    "img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'; "
+                    "sandbox allow-same-origin"
                 )
             self.send_header("Content-Security-Policy", content_policy)
             self.end_headers()

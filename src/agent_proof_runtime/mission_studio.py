@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import html
 import json
+import logging
 import re
 import threading
 import time
@@ -27,6 +28,11 @@ from .build_week_runtime import (
 from .canonical import hash_json
 from .mission import MissionValidationError
 from .mission_v1 import BuildWeekMission, load_build_week_mission
+from .mission_studio_openai import (
+    MissionStudioOpenAIError,
+    MissionStudioOpenAIProvider,
+    configured_openai_model,
+)
 from .providers import (
     ArtifactProposal,
     ProposedArtifact,
@@ -39,7 +45,10 @@ STUDIO_SESSION = re.compile(r"^studio-[0-9a-f]{32}$")
 STAGES = (
     ("planner", "Mission Planner Agent", "planning"),
     ("research", "Research Agent", "researching"),
-    ("builder", "Website Builder Agent", "building"),
+    ("content", "Content Architect Agent", "architecting_content"),
+    ("html_builder", "HTML Builder Agent", "building_markup"),
+    ("css_builder", "CSS Designer Agent", "styling"),
+    ("data_builder", "Data Builder Agent", "building_data"),
     ("qa", "QA Agent", "qa"),
 )
 ARTIFACT_PATHS = (
@@ -55,11 +64,27 @@ MEDIA_TYPES = {
     "studio/trace.json": "application/json",
 }
 PACKAGED_MANIFEST = ("data", "verified-website-build.json")
+LOGGER = logging.getLogger(__name__)
 FAILURE_MESSAGES = {
     "manifest_unavailable": "The packaged Mission Studio manifest is unavailable.",
     "manifest_invalid": "The packaged Mission Studio manifest is invalid.",
     "artifact_contract_rejected": "APR rejected the proposed artifact contract.",
     "provider_failed": "The deterministic artifact provider failed.",
+    "openai_key_absent": "Live mode is unavailable because the server API key is absent.",
+    "openai_sdk_unavailable": "Live mode is unavailable because the OpenAI SDK is not installed.",
+    "openai_request_failed": "The OpenAI stage request failed.",
+    "openai_timeout": "The OpenAI stage request timed out.",
+    "openai_connection_failed": "The OpenAI stage could not establish a connection.",
+    "openai_rate_limited": "The OpenAI stage was rate limited.",
+    "openai_server_error": "The OpenAI service returned a server error.",
+    "openai_auth_failed": "The OpenAI server credentials were rejected.",
+    "openai_permission_denied": "The OpenAI request was not permitted.",
+    "openai_bad_request": "The OpenAI stage request was rejected.",
+    "structured_output_invalid": "The OpenAI stage returned invalid structured output.",
+    "structured_output_truncated": "The OpenAI stage output exceeded its output budget.",
+    "structured_output_refused": "The OpenAI stage output was stopped by content filtering.",
+    "structured_output_incomplete": "The OpenAI stage returned an incomplete response.",
+    "stage_contract_rejected": "The OpenAI stage output violated its fixed contract.",
     "runtime_io_failed": "APR could not materialize the Mission Studio run.",
     "runtime_failed": "Mission Studio could not complete the APR run.",
 }
@@ -92,6 +117,8 @@ def load_packaged_mission() -> BuildWeekMission:
 
 
 def _failure_category(error: Exception) -> str:
+    if isinstance(error, MissionStudioOpenAIError):
+        return error.category
     if isinstance(error, FileNotFoundError):
         return "manifest_unavailable"
     if isinstance(error, MissionValidationError):
@@ -136,23 +163,40 @@ def _normalized_brief(value: Any) -> str:
 class MissionStudioRequest:
     mission_type: str
     brief: str
+    provider: str = "fixture"
 
     @classmethod
     def parse(cls, value: Any) -> "MissionStudioRequest":
         if not isinstance(value, dict):
             raise MissionStudioValidationError("request must be a JSON object")
-        if set(value) != {"mission_type", "brief"}:
+        if set(value) not in (
+            {"mission_type", "brief"},
+            {"mission_type", "brief", "provider"},
+        ):
             raise MissionStudioValidationError(
-                "request must contain exactly mission_type and brief"
+                "request must contain mission_type, brief, and optional provider"
             )
         if value["mission_type"] != MISSION_TYPE:
             raise MissionStudioValidationError(
                 f"mission_type must equal {MISSION_TYPE}"
             )
-        return cls(mission_type=MISSION_TYPE, brief=_normalized_brief(value["brief"]))
+        provider = value.get("provider", "fixture")
+        if provider not in {"fixture", "openai"}:
+            raise MissionStudioValidationError(
+                "provider must equal fixture or openai"
+            )
+        return cls(
+            mission_type=MISSION_TYPE,
+            brief=_normalized_brief(value["brief"]),
+            provider=provider,
+        )
 
     def to_dict(self) -> dict[str, str]:
-        return {"mission_type": self.mission_type, "brief": self.brief}
+        return {
+            "mission_type": self.mission_type,
+            "brief": self.brief,
+            "provider": self.provider,
+        }
 
 
 def _page_data(request: MissionStudioRequest) -> dict[str, Any]:
@@ -210,10 +254,24 @@ def _stage_results(request: MissionStudioRequest) -> tuple[dict[str, Any], ...]:
             ],
         },
         {
-            "artifact_paths": list(ARTIFACT_PATHS),
-            "page_structure": ["hero", "features", "cta"],
+            "content_model": "verified_website_content_v1",
             "feature_count": len(data["features"]),
-            "network_dependencies": 0,
+            "trust_point_count": 3,
+        },
+        {
+            "artifact_path": "site/index.html",
+            "page_structure": ["hero", "features", "cta"],
+            "semantic": True,
+        },
+        {
+            "artifact_path": "site/styles.css",
+            "responsive": True,
+            "external_dependencies": 0,
+        },
+        {
+            "artifact_path": "site/data.json",
+            "valid_json": True,
+            "schema_version": data["schema_version"],
         },
         {
             "checks": [
@@ -235,7 +293,10 @@ def _stage_results(request: MissionStudioRequest) -> tuple[dict[str, Any], ...]:
                 "summary": {
                     "planner": "Locked the fixed website structure and artifact constraints.",
                     "research": "Prepared deterministic fixture content signals for the page.",
-                    "builder": "Prepared the four declared static website artifacts.",
+                    "content": "Structured the verified website content model.",
+                    "html_builder": "Prepared the declared semantic HTML artifact.",
+                    "css_builder": "Prepared the declared responsive CSS artifact.",
+                    "data_builder": "Prepared the declared structured data artifact.",
                     "qa": "Reviewed structure and safety before APR handoff.",
                 }[stage_id],
                 "output": output,
@@ -247,7 +308,7 @@ def _stage_results(request: MissionStudioRequest) -> tuple[dict[str, Any], ...]:
 
 
 def _handoffs(stages: tuple[dict[str, Any], ...]) -> tuple[dict[str, str], ...]:
-    destinations = ("research", "builder", "qa", "apr")
+    destinations = (*[stage[0] for stage in STAGES[1:]], "apr")
     return tuple(
         {
             "source_stage": stage["stage_id"],
@@ -385,15 +446,22 @@ class MissionStudioManager:
         runs_dir: Path,
         run_lock: threading.Lock,
         stage_delay_seconds: float = 0.08,
+        openai_client: Any | None = None,
     ) -> None:
         self.runs_dir = runs_dir
         self.run_lock = run_lock
         self.stage_delay_seconds = max(0.0, stage_delay_seconds)
+        self.openai_client = openai_client
         self._sessions: dict[str, dict[str, Any]] = {}
         self._lock = threading.Lock()
 
     def start(self, value: Any) -> dict[str, Any]:
         request = MissionStudioRequest.parse(value)
+        model = (
+            "fixture-v1"
+            if request.provider == "fixture"
+            else configured_openai_model()
+        )
         if not self.run_lock.acquire(blocking=False):
             raise RuntimeError("another mission is already running")
         session_id = "studio-" + uuid.uuid4().hex
@@ -401,6 +469,8 @@ class MissionStudioManager:
             "session_id": session_id,
             "mission_type": request.mission_type,
             "brief": request.brief,
+            "provider": request.provider,
+            "model": model,
             "state": "queued",
             "progress": 0,
             "current_stage": None,
@@ -483,11 +553,18 @@ class MissionStudioManager:
 
     def _run(self, session_id: str, request: MissionStudioRequest) -> None:
         try:
-            provider = MissionStudioFixtureProvider(request)
-            completed_progress = (18, 36, 55, 72)
-            for index, ((stage_id, stage_name, state), result) in enumerate(
-                zip(STAGES, provider.stages, strict=True)
-            ):
+            provider: Any
+            if request.provider == "fixture":
+                provider = MissionStudioFixtureProvider(request)
+            else:
+                provider = MissionStudioOpenAIProvider(
+                    request, client=self.openai_client
+                )
+            completed_progress = tuple(
+                round(72 * (index + 1) / len(STAGES))
+                for index in range(len(STAGES))
+            )
+            for index, (stage_id, stage_name, state) in enumerate(STAGES):
                 self._update(
                     session_id,
                     state=state,
@@ -502,7 +579,21 @@ class MissionStudioManager:
                     stage_id=stage_id,
                     stage_name=stage_name,
                 )
-                self._pause()
+                if request.provider == "fixture":
+                    self._pause()
+                    result = provider.stages[index]
+                    handoff = provider.handoffs[index]
+                else:
+                    result = provider.run_stage(stage_id)
+                    handoff = {
+                        "source_stage": stage_id,
+                        "destination_stage": (
+                            STAGES[index + 1][0]
+                            if index + 1 < len(STAGES)
+                            else "apr"
+                        ),
+                        "output_hash": result["output_hash"],
+                    }
                 self._agent(
                     session_id,
                     stage_id,
@@ -520,11 +611,10 @@ class MissionStudioManager:
                     stage_id=stage_id,
                     stage_name=stage_name,
                     summary=result["summary"],
-                    structured_output=result["output"],
+                    structured_output=result.get("event_output", result["output"]),
                     output_hash=result["output_hash"],
                     status="completed",
                 )
-                handoff = provider.handoffs[index]
                 destination = handoff["destination_stage"]
                 handoff_type = f"handoff.{stage_id}_to_{destination}"
                 self._agent(session_id, stage_id, status="handing_off")
@@ -560,7 +650,7 @@ class MissionStudioManager:
             result = run_build_week_mission(
                 mission,
                 self.runs_dir / run_name,
-                provider_name="fixture",
+                provider_name=request.provider,
                 provider=provider,
             )
             self._event(session_id, "apr.run.completed", run_id=run_name)
@@ -594,6 +684,18 @@ class MissionStudioManager:
             )
         except Exception as error:
             failure_category = _failure_category(error)
+            failure_diagnostics: dict[str, Any] | None = None
+            if isinstance(error, MissionStudioOpenAIError):
+                failure_diagnostics = error.safe_diagnostics()
+                LOGGER.warning(
+                    "mission_studio_openai_failure %s",
+                    json.dumps(
+                        failure_diagnostics,
+                        ensure_ascii=True,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ),
+                )
             with self._lock:
                 session = self._sessions[session_id]
                 session.update(
@@ -604,17 +706,20 @@ class MissionStudioManager:
                     failure_category=failure_category,
                     error=FAILURE_MESSAGES[failure_category],
                 )
+                if failure_diagnostics is not None:
+                    session["failure_diagnostics"] = failure_diagnostics
                 for agent in session["agents"]:
                     if agent["status"] in {"working", "handing_off"}:
                         agent["status"] = "failed"
                 events = session["events"]
-                events.append(
-                    {
-                        "id": f"event-{len(events) + 1:03d}",
-                        "type": "studio.mission_failed",
-                        "timestamp": _timestamp(),
-                        "category": failure_category,
-                    }
-                )
+                failed_event = {
+                    "id": f"event-{len(events) + 1:03d}",
+                    "type": "studio.mission_failed",
+                    "timestamp": _timestamp(),
+                    "category": failure_category,
+                }
+                if failure_diagnostics is not None:
+                    failed_event.update(failure_diagnostics)
+                events.append(failed_event)
         finally:
             self.run_lock.release()
