@@ -3,6 +3,8 @@ name: Final mask preview verification
 on:
   push:
     branches: [fix/main-logo-flow-alignment]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
