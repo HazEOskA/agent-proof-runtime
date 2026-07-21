@@ -336,11 +336,16 @@ _UI_V2_CSS = r"""
       .masthead::before, .masthead::after { left: 72px; right: 12px; top: 150px; }
       .brand-lockup { height: 144px; margin-inline: auto; }
       .brand-circuit { left: 70px; }
-      .runtime-stack { height: 154px; }
+      .runtime-stack {
+        height: 154px;
+        margin-bottom: 0;
+        transform: translateX(3px);
+        transform-origin: center;
+      }
       .runtime-openai-card { left: 0; top: 40px; transform: scale(.84); transform-origin: left center; }
-      .runtime-gate { left: 30%; transform: scale(.78); }
-      .model-core { left: 45%; transform: scale(.82); }
-      .runtime-chip.codex-core { right: 13%; transform: scale(.76); }
+      .runtime-gate { left: 31%; transform: scale(.78); }
+      .model-core { left: 44%; transform: scale(.82); }
+      .runtime-chip.codex-core { right: calc(13% + 1px); transform: scale(.76); }
       .agent-core { right: 0; transform: scale(.78); }
       .hero { min-height: 0; padding-top: 2px; }
       .hero h1 { font-size: clamp(39px, 12vw, 56px); }
