@@ -14,8 +14,14 @@
   and security regression coverage.
 - `d0cc1f8` — keep mission outcome separate from proof validity, add hostile-provider
   policy regression coverage, and extend CI with the fixture flow.
-- Later documentation/deployment commit — English competition README, provenance,
-  collaboration record, demo script, audit, Dockerfile, Railway configuration.
+- Later documentation/deployment commits — English competition README, provenance,
+  collaboration record, demo script, audit, Dockerfile, and Railway configuration.
+- `2eabbd0` — merge the final Mission Studio and live-validated seven-stage GPT-5.6
+  pipeline into `main`.
+- `bc8e85c` — merge the final 90-second demo voiceover documentation with explicit
+  Codex and GPT-5.6 usage.
+- `e0ffbd3` — raise the live CSS artifact ceiling to 1 MiB in the validator and both
+  APR manifests after the final CSS Designer smoke run exposed the old 16 KiB cap.
 
 ## Compatibility retained
 
@@ -24,4 +30,5 @@
 - Proof Bundle v0.1/v0.2 verification semantics;
 - Mission Control CSRF, CSP, Host/DNS rebinding, traversal, and symlink defenses.
 
-No commit above was squashed into `f03fe35`, and no change was merged into `main`.
+No commit above was squashed into or used to rewrite `f03fe35`. The final
+continuation was merged into `main` with its preserved ancestry intact.
