@@ -330,6 +330,10 @@ See:
 - [90-second demo script](docs/DEMO_SCRIPT.md)
 - [Gap audit](docs/BUILD_WEEK_GAP_AUDIT.md)
 
+## License
+
+Released under the [MIT License](LICENSE).
+
 ## Read the book: *Proof Before Trust*
 
 <a href="book/PROOF_BEFORE_TRUST.md">
