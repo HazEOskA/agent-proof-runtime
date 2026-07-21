@@ -1,0 +1,111 @@
+name: Final mask preview verification
+
+on:
+  push:
+    branches: [fix/main-logo-flow-alignment]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install APR
+        run: python -m pip install -e .
+
+      - name: Start Mission Control
+        run: |
+          nohup apr mission-control --host 127.0.0.1 --port 8080 > /tmp/apr-server.log 2>&1 &
+          for attempt in $(seq 1 40); do
+            if curl --fail --silent http://127.0.0.1:8080/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/apr-server.log
+          exit 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright
+        run: |
+          npm init -y
+          npm install playwright@1.54.1
+          npx playwright install --with-deps chromium
+
+      - name: Capture and assert final preview
+        run: |
+          mkdir -p final-preview
+          node <<'NODE'
+          const fs = require('fs');
+          const { chromium } = require('playwright');
+
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            const page = await browser.newPage({
+              viewport: { width: 1440, height: 900 },
+              deviceScaleFactor: 1,
+            });
+            await page.goto('http://127.0.0.1:8080/', {
+              waitUntil: 'networkidle',
+              timeout: 120000,
+            });
+            await page.waitForSelector('.brand-source', { timeout: 60000 });
+            await page.emulateMedia({ reducedMotion: 'reduce' });
+
+            const metrics = await page.evaluate(() => {
+              const source = document.querySelector('.brand-source');
+              const mask = document.querySelector('.brand-mask');
+              const lockup = document.querySelector('.brand-lockup');
+              const masthead = document.querySelector('.masthead');
+              const style = getComputedStyle(source);
+              const rect = (node) => {
+                const r = node.getBoundingClientRect();
+                return { x: r.x, y: r.y, width: r.width, height: r.height, right: r.right, bottom: r.bottom };
+              };
+              return {
+                viewport: { width: innerWidth, height: innerHeight },
+                computedLeft: style.left,
+                computedTop: style.top,
+                source: rect(source),
+                mask: rect(mask),
+                lockup: rect(lockup),
+                masthead: rect(masthead),
+              };
+            });
+
+            if (metrics.computedLeft !== '-43px') {
+              throw new Error(`Expected computed left -43px, received ${metrics.computedLeft}`);
+            }
+
+            fs.writeFileSync('final-preview/metrics.json', JSON.stringify(metrics, null, 2));
+            await page.screenshot({ path: 'final-preview/osa-mask-final-35px.png', fullPage: false });
+            await page.locator('.masthead').screenshot({ path: 'final-preview/osa-mask-final-35px-masthead.png' });
+            fs.writeFileSync('final-preview/index.html', await page.content());
+            console.log(JSON.stringify(metrics, null, 2));
+            await browser.close();
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+
+      - name: Upload verified preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: osa-mask-final-preview
+          path: final-preview/*
+          if-no-files-found: error
+          retention-days: 3

@@ -68,7 +68,7 @@ _UI_V2_CSS = r"""
     }
     .brand-mask::after { display: block; border-color: rgba(89, 177, 171, .18); }
     .brand-source {
-      left: -6px;
+      left: -21px;
       top: -60px;
       width: 864px;
       height: 1536px;
@@ -340,6 +340,50 @@ _UI_V2_CSS = r"""
       .agent-pipeline { grid-template-columns: repeat(7, minmax(124px, 1fr)); overflow-x: auto; padding-bottom: 8px; }
       .flow-grid { grid-template-columns: repeat(5, minmax(150px,1fr)); overflow-x: auto; }
       .flow-wires { min-width: 760px; }
+    }
+
+    /* Minimal optical correction: preserve the locked main composition. */
+    .brand-lockup {
+      display: grid;
+      place-items: center;
+    }
+    .brand-source {
+      left: -8px;
+      top: -62px;
+    }
+    .runtime-openai-card {
+      left: calc(1.5% - 4px);
+      width: 162px;
+    }
+
+    /* One continuation of the existing top bus, flowing straight down. */
+    main { position: relative; }
+    main::before {
+      content: "";
+      position: absolute;
+      z-index: 4;
+      top: -88px;
+      right: 18px;
+      bottom: 0;
+      width: 2px;
+      pointer-events: none;
+      background-color: #39777b;
+      background-image: repeating-linear-gradient(
+        180deg,
+        transparent 0 10px,
+        #4fe5dd 10px 16px,
+        transparent 16px 27px
+      );
+      background-size: 2px 27px;
+      animation: apr-main-flow-down .9s linear infinite;
+    }
+    @keyframes apr-main-flow-down { to { background-position-y: 27px; } }
+
+    @media (max-width: 900px) {
+      .runtime-openai-card { left: -4px; width: 140px; }
+    }
+    @media (max-width: 640px) {
+      main::before { top: -166px; right: 12px; }
     }
 """
 
