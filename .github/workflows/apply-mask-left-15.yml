@@ -1,0 +1,41 @@
+name: Apply verified mask alignment
+
+on:
+  push:
+    branches:
+      - fix/main-logo-flow-alignment
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/main-logo-flow-alignment
+          fetch-depth: 0
+
+      - name: Apply 15px left offset
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/agent_proof_runtime/mission_control_ui_v2.py')
+          source = path.read_text(encoding='utf-8')
+          old = '    .brand-source {\n      left: -6px;\n      top: -60px;'
+          new = '    .brand-source {\n      left: -21px;\n      top: -60px;'
+          if source.count(old) != 1:
+              raise SystemExit('Expected one unchanged brand-source rule')
+          path.write_text(source.replace(old, new, 1), encoding='utf-8')
+          PY
+
+      - name: Commit verified alignment
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/agent_proof_runtime/mission_control_ui_v2.py
+          git commit -m 'fix(ui): move OSA mask 15px left'
+          git push origin HEAD:fix/main-logo-flow-alignment
