@@ -1,0 +1,83 @@
+name: Mask alignment screenshots
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright
+        run: |
+          npm init -y
+          npm install playwright@1.54.1
+          npx playwright install --with-deps chromium
+
+      - name: Capture every movement
+        env:
+          PREVIEW_URL: https://apr-main-mask-left-preview.vercel.app/?_vercel_share=ZgtUA2PYUKV2Vx2CZ24h6qe7Gt1TT300
+        run: |
+          mkdir -p mask-screenshots
+          node <<'NODE'
+          const { chromium } = require('playwright');
+
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            const page = await browser.newPage({
+              viewport: { width: 1440, height: 900 },
+              deviceScaleFactor: 1,
+            });
+
+            await page.goto(process.env.PREVIEW_URL, {
+              waitUntil: 'networkidle',
+              timeout: 120000,
+            });
+            await page.waitForSelector('.brand-source', { timeout: 60000 });
+            await page.emulateMedia({ reducedMotion: 'reduce' });
+
+            const steps = [2, 4, 6, 8, 10, 12, 14, 15];
+            for (const shift of steps) {
+              const left = -6 - shift;
+              await page.evaluate(({ shift, left }) => {
+                let style = document.getElementById('mask-step-capture-style');
+                if (!style) {
+                  style = document.createElement('style');
+                  style.id = 'mask-step-capture-style';
+                  document.head.appendChild(style);
+                }
+                style.textContent = `@media (min-width:901px){.brand-source{left:${left}px!important;top:-60px!important}}`;
+                document.documentElement.dataset.maskShift = String(shift);
+              }, { shift, left });
+              await page.waitForTimeout(400);
+              const suffix = String(shift).padStart(2, '0');
+              await page.screenshot({
+                path: `mask-screenshots/osa-mask-left-${suffix}px.png`,
+                fullPage: false,
+              });
+            }
+
+            await browser.close();
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: osa-mask-alignment-steps
+          path: mask-screenshots/*.png
+          if-no-files-found: error
+          retention-days: 3
