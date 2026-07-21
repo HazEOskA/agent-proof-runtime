@@ -1,0 +1,112 @@
+name: Verify main browser animation
+
+on:
+  push:
+    branches: [chatgpt/verify-main-animation]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install APR
+        run: python -m pip install -e .
+
+      - name: Start Mission Control
+        run: |
+          nohup apr mission-control --host 127.0.0.1 --port 8080 > /tmp/apr-server.log 2>&1 &
+          for attempt in $(seq 1 40); do
+            curl --fail --silent http://127.0.0.1:8080/ >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/apr-server.log
+          exit 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright
+        run: |
+          npm init -y
+          npm install playwright@1.54.1
+          npx playwright install --with-deps chromium
+
+      - name: Verify animation locally and on Railway
+        env:
+          LIVE_URL: https://agent-proof-runtime-production.up.railway.app/
+        run: |
+          node <<'NODE'
+          const { chromium } = require('playwright');
+
+          async function animationState(page) {
+            return page.evaluate(() => ({
+              left: getComputedStyle(document.querySelector('.brand-source')).left,
+              animations: document.getAnimations({ subtree: true }).map((animation) => ({
+                name: animation.animationName,
+                currentTime: Number(animation.currentTime || 0),
+                playState: animation.playState,
+              })),
+            }));
+          }
+
+          async function assertMoving(page, label) {
+            await page.waitForSelector('.brand-source', { timeout: 60000 });
+            const first = await animationState(page);
+            await page.waitForTimeout(420);
+            const second = await animationState(page);
+            for (const name of ['apr-top-bus', 'apr-main-flow-down']) {
+              const a = first.animations.find((item) => item.name === name);
+              const b = second.animations.find((item) => item.name === name);
+              if (!a || !b) throw new Error(`${label}: missing ${name}`);
+              if (b.playState !== 'running') throw new Error(`${label}: ${name} is ${b.playState}`);
+              if (!(b.currentTime > a.currentTime)) {
+                throw new Error(`${label}: ${name} did not advance (${a.currentTime} -> ${b.currentTime})`);
+              }
+            }
+            if (second.left !== '-43px') throw new Error(`${label}: mask left is ${second.left}`);
+            console.log(label, JSON.stringify(second));
+          }
+
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+            await page.goto('http://127.0.0.1:8080/', { waitUntil: 'networkidle', timeout: 120000 });
+            await assertMoving(page, 'local');
+
+            let liveReady = false;
+            for (let attempt = 1; attempt <= 30; attempt++) {
+              await page.goto(process.env.LIVE_URL, { waitUntil: 'networkidle', timeout: 120000 });
+              const left = await page.locator('.brand-source').evaluate((node) => getComputedStyle(node).left);
+              if (left === '-43px') {
+                liveReady = true;
+                break;
+              }
+              console.log(`Railway deployment not current yet (${attempt}/30): ${left}`);
+              await page.waitForTimeout(10000);
+            }
+            if (!liveReady) throw new Error('Railway did not deploy the current main commit in time');
+            await assertMoving(page, 'railway');
+            await page.screenshot({ path: 'verified-main-animation.png', fullPage: false });
+            await browser.close();
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-main-animation
+          path: verified-main-animation.png
+          if-no-files-found: error
+          retention-days: 1
