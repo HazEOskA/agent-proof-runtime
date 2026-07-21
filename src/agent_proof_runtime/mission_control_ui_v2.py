@@ -341,6 +341,226 @@ _UI_V2_CSS = r"""
       .flow-grid { grid-template-columns: repeat(5, minmax(150px,1fr)); overflow-x: auto; }
       .flow-wires { min-width: 760px; }
     }
+
+    /* Flow-only patch: preserve the locked UI and expose one continuous execution route. */
+    .masthead {
+      align-items: center;
+      overflow: visible;
+    }
+    .brand-lockup {
+      display: grid;
+      place-items: center;
+      justify-self: center;
+      align-self: center;
+    }
+    .masthead::after {
+      width: auto;
+      right: 18px;
+    }
+
+    /* Logo-only runtime rail: existing official marks, no additional labels. */
+    .runtime-stack {
+      position: relative;
+      align-self: center;
+      justify-self: center;
+    }
+    .runtime-traces { display: none; }
+    .runtime-openai-card {
+      top: 44px;
+      left: 3%;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 14px;
+      width: 166px;
+      min-height: 72px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+    .runtime-openai-card .openai-blossom { width: 46px; height: 46px; }
+    .runtime-openai-card .openai-wordmark { width: 96px; height: 28px; }
+    .runtime-openai-card span,
+    .runtime-gate,
+    .agent-core,
+    .runtime-version-note { display: none; }
+    .model-core {
+      top: 52px;
+      left: 52%;
+      bottom: auto;
+      width: 68px;
+      height: 56px;
+      border: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+    .runtime-chip.codex-core {
+      top: 43px;
+      right: 4%;
+      display: grid;
+      place-items: center;
+      width: 74px;
+      height: 74px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+    .runtime-chip.codex-core::before,
+    .runtime-chip.codex-core span,
+    .runtime-chip.codex-core small { display: none; }
+    .runtime-chip.codex-core .codex-mark { width: 54px; height: 54px; }
+    .runtime-stack::before,
+    .runtime-stack::after {
+      content: "";
+      position: absolute;
+      z-index: 1;
+      top: 80px;
+      right: calc(4% + 36px);
+      width: 3px;
+      height: 112px;
+      pointer-events: none;
+    }
+    .runtime-stack::before { background: #39777b; }
+    .runtime-stack::after {
+      background: repeating-linear-gradient(180deg, transparent 0 10px, #4fe5dd 10px 16px, transparent 16px 27px);
+      background-size: 3px 27px;
+      animation: apr-flow-down .9s linear infinite;
+    }
+
+    /* The visual order now follows execution: runtime -> approved mission -> agents -> trust gate. */
+    #missions-section { order: 3; }
+    #mission-studio { order: 4; }
+    #control-room { order: 5; }
+    #system-status { order: 6; }
+    #runs-section { order: 7; }
+    .command-dock { order: 8; }
+
+    .hero,
+    .quick-nav,
+    #missions-section,
+    #mission-studio,
+    #mission-studio .studio-form,
+    #mission-studio .studio-zones,
+    #mission-studio .trust-zone { position: relative; overflow: visible; }
+
+    .hero::after,
+    .quick-nav::after,
+    #missions-section::before,
+    #missions-section::after,
+    #mission-studio::before,
+    #mission-studio .studio-form::after,
+    #mission-studio .studio-zones::before,
+    #mission-studio .trust-zone::after {
+      content: "";
+      position: absolute;
+      z-index: 3;
+      width: 3px;
+      pointer-events: none;
+      background-color: #39777b;
+      background-image: repeating-linear-gradient(180deg, transparent 0 10px, #4fe5dd 10px 16px, transparent 16px 27px);
+      background-size: 3px 27px;
+      animation: apr-flow-down .9s linear infinite;
+    }
+    .hero::after { top: -10px; right: 7.5%; bottom: -10px; }
+    .quick-nav::after { top: -12px; right: 7.5%; bottom: -30px; }
+    #missions-section::before { top: -30px; right: 7.5%; bottom: 45%; }
+    #missions-section::after { top: 55%; bottom: -30px; left: 50%; }
+    #mission-studio::before { top: -30px; left: 50%; height: 30px; }
+    #mission-studio .studio-form::after { bottom: -20px; left: 50%; height: 20px; }
+    #mission-studio .studio-zones::before { top: -18px; left: 50%; height: 18px; }
+    #mission-studio .trust-zone::after { bottom: -18px; left: 50%; height: 18px; }
+
+    .missions::before,
+    #mission-studio .agent-pipeline::before,
+    #mission-studio .agent-zone::after,
+    #mission-studio .studio-bottom::before {
+      animation: agent-bus .8s linear infinite;
+    }
+    #mission-studio .studio-bottom::before {
+      background: repeating-linear-gradient(0deg, #2d6668 0 5px, #5edbd4 5px 9px, #2d6668 9px 14px);
+    }
+
+    @keyframes apr-flow-down { to { background-position-y: 27px; } }
+
+    @media (max-width: 900px) {
+      .brand-lockup { margin-inline: auto; }
+      #mission-studio .agent-zone::after {
+        right: 50%;
+        top: auto;
+        bottom: -16px;
+        width: 3px;
+        height: 16px;
+      }
+      #mission-studio .trust-zone::after { left: 50%; }
+    }
+
+    @media (max-width: 640px) {
+      .masthead { min-height: 304px; }
+      .masthead::before,
+      .masthead::after { top: 222px; left: 14px; right: 14px; }
+      .runtime-stack {
+        width: 100%;
+        min-width: 0;
+        height: 148px;
+        margin: 0 auto;
+        transform: none;
+        transform-origin: center;
+      }
+      .runtime-openai-card {
+        top: 44px;
+        left: 1%;
+        gap: 7px;
+        width: 124px;
+        min-height: 60px;
+        transform: none;
+      }
+      .runtime-openai-card .openai-blossom { width: 36px; height: 36px; }
+      .runtime-openai-card .openai-wordmark { width: 78px; height: 24px; }
+      .model-core {
+        top: 48px;
+        left: 52%;
+        width: 54px;
+        height: 52px;
+        transform: translateX(-50%);
+      }
+      .runtime-chip.codex-core {
+        top: 48px;
+        right: 2%;
+        width: 54px;
+        height: 54px;
+        transform: none;
+      }
+      .runtime-chip.codex-core .codex-mark { width: 46px; height: 46px; }
+      .runtime-stack::before,
+      .runtime-stack::after {
+        top: 74px;
+        right: calc(2% + 26px);
+        height: 82px;
+      }
+      .hero::after,
+      .quick-nav::after,
+      #missions-section::before { right: 8%; }
+      #missions-section { margin-top: 22px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .masthead::after,
+      .runtime-stack::after,
+      .hero::after,
+      .quick-nav::after,
+      #missions-section::before,
+      #missions-section::after,
+      #mission-studio::before,
+      #mission-studio .studio-form::after,
+      #mission-studio .studio-zones::before,
+      #mission-studio .agent-zone::after,
+      #mission-studio .trust-zone::after,
+      #mission-studio .agent-pipeline::before,
+      #mission-studio .studio-bottom::before,
+      .missions::before { animation: none !important; }
+    }
 """
 
 
