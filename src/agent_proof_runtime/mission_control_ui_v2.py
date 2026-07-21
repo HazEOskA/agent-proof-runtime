@@ -508,6 +508,20 @@ _UI_V2_CSS = r"""
         transform: none;
         transform-origin: center;
       }
+      .brand-lockup::after {
+        content: "";
+        position: absolute;
+        z-index: 1;
+        top: 124px;
+        right: -84px;
+        width: 3px;
+        height: 98px;
+        pointer-events: none;
+        background-color: #39777b;
+        background-image: repeating-linear-gradient(180deg, transparent 0 10px, #4fe5dd 10px 16px, transparent 16px 27px);
+        background-size: 3px 27px;
+        animation: apr-flow-down .9s linear infinite;
+      }
       .runtime-openai-card {
         top: 44px;
         left: 1%;
@@ -547,6 +561,7 @@ _UI_V2_CSS = r"""
 
     @media (prefers-reduced-motion: reduce) {
       .masthead::after,
+      .brand-lockup::after,
       .runtime-stack::after,
       .hero::after,
       .quick-nav::after,
