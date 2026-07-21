@@ -68,7 +68,7 @@ _UI_V2_CSS = r"""
     }
     .brand-mask::after { display: block; border-color: rgba(89, 177, 171, .18); }
     .brand-source {
-      left: -6px;
+      left: -21px;
       top: -60px;
       width: 864px;
       height: 1536px;
