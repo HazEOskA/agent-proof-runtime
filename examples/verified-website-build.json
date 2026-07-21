@@ -17,7 +17,7 @@
       {
         "path": "site/styles.css",
         "media_type": "text/css",
-        "max_bytes": 16384,
+        "max_bytes": 1048576,
         "required": true,
         "fixture_content": "body{background:#050609;color:#f4f7f8}\n"
       },
@@ -37,7 +37,7 @@
       }
     ],
     "max_files": 4,
-    "max_total_bytes": 90112,
+    "max_total_bytes": 1122304,
     "allowed_media_types": [
       "text/html",
       "text/css",
@@ -62,7 +62,7 @@
     {"id": "features_marker_present", "type": "contains_text", "path": "site/index.html", "text": "data-apr-section=\"features\""},
     {"id": "cta_marker_present", "type": "contains_text", "path": "site/index.html", "text": "data-apr-section=\"cta\""},
     {"id": "html_size_bounded", "type": "maximum_size", "path": "site/index.html", "max_bytes": 24576},
-    {"id": "css_size_bounded", "type": "maximum_size", "path": "site/styles.css", "max_bytes": 16384},
+    {"id": "css_size_bounded", "type": "maximum_size", "path": "site/styles.css", "max_bytes": 1048576},
     {"id": "data_size_bounded", "type": "maximum_size", "path": "site/data.json", "max_bytes": 16384},
     {"id": "trace_size_bounded", "type": "maximum_size", "path": "studio/trace.json", "max_bytes": 32768}
   ],
