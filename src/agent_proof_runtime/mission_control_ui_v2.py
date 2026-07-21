@@ -54,6 +54,10 @@ _UI_V2_CSS = r"""
 
     .brand-lockup {
       z-index: 2;
+      display: grid;
+      place-items: center;
+      justify-self: center;
+      align-self: center;
       width: 176px;
       height: 160px;
       overflow: visible;
@@ -87,6 +91,8 @@ _UI_V2_CSS = r"""
 
     .runtime-stack {
       z-index: 2;
+      align-self: center;
+      justify-self: center;
       width: 100%;
       min-width: 0;
       height: 160px;
@@ -328,7 +334,7 @@ _UI_V2_CSS = r"""
     @media (max-width: 640px) {
       .masthead { display: block; min-height: 316px; padding-top: 6px; }
       .masthead::before, .masthead::after { left: 72px; right: 12px; top: 150px; }
-      .brand-lockup { height: 144px; }
+      .brand-lockup { height: 144px; margin-inline: auto; }
       .runtime-stack { height: 154px; }
       .runtime-openai-card { left: 0; top: 40px; transform: scale(.84); transform-origin: left center; }
       .runtime-gate { left: 30%; transform: scale(.78); }
