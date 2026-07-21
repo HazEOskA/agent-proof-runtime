@@ -17,6 +17,8 @@ Product doctrine:
 
 - Mission Control: <https://agent-proof-runtime-production.up.railway.app>
 - Health endpoint: <https://agent-proof-runtime-production.up.railway.app/health>
+- 90-second public demo: <https://youtu.be/6UFQjGiVqbs>
+- Hosted validation record: [docs/HOSTED_VALIDATION.md](docs/HOSTED_VALIDATION.md)
 - Primary judge path: deterministic fixture mode with no API key or external network dependency.
 - Hosted run storage may be ephemeral; the checked-in CLI path remains the reproducible source of truth.
 
@@ -59,13 +61,54 @@ Mission Manifest
 APR preserves the legacy `apr demo`, MissionSpec v0.2, and v0.1/v0.2 Proof Bundle
 verification paths.
 
+## Mission Studio: seven agents, one proof boundary
+
+Mission Studio accepts one constrained website brief and runs a fixed upstream
+pipeline:
+
+1. Mission Planner
+2. Research Agent
+3. Content Architect
+4. HTML Builder
+5. CSS Designer
+6. Data Builder
+7. QA Agent
+
+The pipeline produces exactly four declared text artifacts:
+`site/index.html`, `site/styles.css`, `site/data.json`, and
+`studio/trace.json`. Those exact bytes are handed to APR's existing trust gate.
+APR—not the agents—enforces paths, media types, file counts, and size limits,
+runs 16 deterministic acceptance checks, writes the Proof Bundle, and invokes the
+independent verifier. QA reviews the generated site but cannot issue
+`LOCAL_VERIFIED`.
+
+Fixture mode is deterministic, offline, and keyless. Live mode runs seven
+sequential stages through the OpenAI Responses API with strict Structured Outputs,
+`store=False`, and up to three attempts per stage; it fails closed instead of
+replacing rejected live output with a fixture template. The complete live Mission Studio path was validated on
+2026-07-18 and returned `PASSED` / `LOCAL_VERIFIED` / `UNANCHORED`.
+
+Implementation and claim boundaries are documented in
+[Mission Studio](docs/MISSION_STUDIO.md) and
+[Mission Studio live OpenAI mode](docs/MISSION_STUDIO_OPENAI.md).
+
 ## Install
 
 Python 3.11 or 3.12 is supported.
 
+macOS/Linux:
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
+python -m pip install -e .
+```
+
+Windows PowerShell:
+
+```powershell
+py -3.11 -m venv .venv
+.venv\Scripts\Activate.ps1
 python -m pip install -e .
 ```
 
@@ -97,6 +140,15 @@ Anchor:  UNANCHORED
 Fixture mode is deterministic, offline, CI-safe, and exercises the same proposal,
 materialization, acceptance, event, and Proof Bundle contracts as live mode.
 
+For the visual judge path, start Mission Control and run the preset Mission Studio
+brief with the default **Fixture** provider:
+
+```bash
+apr mission-control
+```
+
+Open <http://127.0.0.1:8080>. No account, API key, or external service is required.
+
 ## Live GPT-5.6 mode
 
 Live mode uses the official OpenAI Responses API with strict Structured Outputs,
@@ -112,13 +164,20 @@ APR_OPENAI_MODEL=gpt-5.6 apr run examples/build-week-mission.json \
   --output .runs/gpt-5-6-smoke
 ```
 
-Current status: **LIVE-VALIDATED**. On 2026-07-15, a controlled local GPT-5.6 run
-completed with mission `PASSED`, proof `LOCAL_VERIFIED`, and anchor `UNANCHORED`.
-Independent verification replayed all five recorded events, and a persistence scan
-confirmed that the API key was absent from every stored run file. The key was
-provided only through the current process environment and removed immediately after
-the run. This validates the provider integration; it does not change APR's local,
-unsigned, externally unanchored trust boundary.
+The direct artifact-provider path is **LIVE-VALIDATED**. On 2026-07-15, a
+controlled local GPT-5.6 run completed with mission `PASSED`, proof
+`LOCAL_VERIFIED`, and anchor `UNANCHORED`. Independent verification replayed all
+five recorded events, and a persistence scan confirmed that the API key was absent
+from every stored run file. The key was provided only through the current process
+environment and removed immediately after the run.
+
+The full seven-stage Mission Studio path is also **LIVE-VALIDATED**. On 2026-07-18,
+seven sequential GPT-5.6 stages produced the four declared artifacts, reached QA and
+APR without fixture fallback, passed all 16 deterministic checks, and returned
+`PASSED` / `LOCAL_VERIFIED` / `UNANCHORED`. Disposable artifact and trace mutations
+were detected while the original remained verified. These validations demonstrate
+the provider integrations; they do not change APR's local, unsigned, externally
+unanchored trust boundary.
 
 ## Mission Manifest v1
 
@@ -261,6 +320,8 @@ See:
 - [Project Manifesto](docs/PROJECT_MANIFESTO.md)
 - [Product Blueprint](docs/PRODUCT_BLUEPRINT.md)
 - [Controlled live validation](docs/LIVE_VALIDATION.md)
+- [Seven-stage Mission Studio live validation](docs/MISSION_STUDIO_OPENAI.md)
+- [Hosted deployment validation](docs/HOSTED_VALIDATION.md)
 - [Build Week guide](docs/BUILD_WEEK.md)
 - [Architecture Lock](docs/ARCHITECTURE_LOCK_BUILD_WEEK_v1.md)
 - [Before Build Week](docs/BEFORE_BUILD_WEEK.md)
@@ -268,3 +329,21 @@ See:
 - [Codex collaboration](docs/CODEX_COLLABORATION.md)
 - [90-second demo script](docs/DEMO_SCRIPT.md)
 - [Gap audit](docs/BUILD_WEEK_GAP_AUDIT.md)
+
+## License
+
+Released under the [MIT License](LICENSE).
+
+## Read the book: *Proof Before Trust*
+
+<a href="book/PROOF_BEFORE_TRUST.md">
+  <img src="book/cover.svg" alt="Proof Before Trust — Engineering Verifiable Execution for Autonomous AI Agents" width="320">
+</a>
+
+The repository includes Bartosz Osiński's complete 32-chapter technical book about
+APR's product architecture, evidence model, trust boundaries, validation record,
+and roadmap.
+
+- [Book overview and table of contents](book/README.md)
+- [Read the complete assembled manuscript](book/PROOF_BEFORE_TRUST.md)
+- [Review the repository evidence map](book/SOURCES.md)

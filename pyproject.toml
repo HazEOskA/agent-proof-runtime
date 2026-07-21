@@ -7,6 +7,7 @@ name = "agent-proof-runtime"
 version = "0.3.0"
 description = "Development sandbox with independently verifiable execution receipts for AI agents."
 readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.11"
 authors = [{ name = "HazEOskA" }]
 classifiers = [
