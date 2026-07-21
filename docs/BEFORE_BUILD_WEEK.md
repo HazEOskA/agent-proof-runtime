@@ -4,7 +4,7 @@ This document records repository provenance without inventing calendar history.
 
 ## Declared baseline
 
-The public GitHub `main` baseline before final Build Week publication points to
+The repository `main` baseline before the final Build Week continuation points to
 `8bba7ed`. The original implementation lineage was preserved separately and then
 connected to that public history without rewriting either side. The technical sandbox
 baseline in that preserved lineage was built in three commits:
