@@ -1,3 +1,9 @@
+<p align="center">
+  <img src="docs/assets/apr-hero.svg" alt="APR — Agent Proof Runtime">
+</p>
+
+<p align="center"><strong>Observe. Prove. Protect.</strong></p>
+
 # Agent Proof Runtime
 
 Agent Proof Runtime (APR) turns autonomous AI work into independently verifiable
