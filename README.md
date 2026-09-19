@@ -61,6 +61,7 @@ Anchor:  UNANCHORED
 - **Independent verifier** — re-checks hashes, events, Merkle root, and bundle integrity
 - **Tamper Lab** — mutates a copy and proves detection works
 - **Mission Studio** — seven-agent pipeline behind one proof boundary
+- **APR 3D Control Plane** — immersive 3D front end driven only by real runtime events
 
 ## Live demo
 
@@ -72,6 +73,7 @@ Anchor:  UNANCHORED
 
 - [Project Manifesto](docs/PROJECT_MANIFESTO.md)
 - [Product Blueprint](docs/PRODUCT_BLUEPRINT.md)
+- [APR 3D Control Plane](docs/CONTROL_PLANE_3D.md)
 - [Mission Studio](docs/MISSION_STUDIO.md)
 - [Mission Studio live OpenAI mode](docs/MISSION_STUDIO_OPENAI.md)
 - [Controlled live validation](docs/LIVE_VALIDATION.md)

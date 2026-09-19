@@ -38,6 +38,13 @@ from .mission_studio_openai import (
     configured_openai_model,
 )
 from .build_week_runtime import ArtifactPolicyError, run_build_week_mission
+from .control_plane import (
+    CONTENT_SECURITY_POLICY as CONTROL_PLANE_CSP,
+    ControlPlaneAssetError,
+    ControlPlaneUnavailable,
+    control_plane_asset,
+    render_control_plane,
+)
 from .providers import ProviderError
 from .runtime import RunDirectoryExists, run_mission
 from .validator import verify_bundle
@@ -442,6 +449,7 @@ def _handler_factory(control: MissionControl) -> type[BaseHTTPRequestHandler]:
             length: int,
             *,
             dashboard: bool = False,
+            content_policy: str | None = None,
         ) -> None:
             self.send_response(status)
             self.send_header("Content-Type", content_type)
@@ -450,7 +458,9 @@ def _handler_factory(control: MissionControl) -> type[BaseHTTPRequestHandler]:
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Referrer-Policy", "no-referrer")
             self.send_header("X-Frame-Options", "DENY")
-            if dashboard:
+            if content_policy is not None:
+                pass
+            elif dashboard:
                 content_policy = (
                     "default-src 'none'; style-src 'unsafe-inline'; "
                     "script-src 'unsafe-inline'; connect-src 'self'; "
@@ -472,8 +482,15 @@ def _handler_factory(control: MissionControl) -> type[BaseHTTPRequestHandler]:
             status: HTTPStatus = HTTPStatus.OK,
             *,
             dashboard: bool = False,
+            content_policy: str | None = None,
         ) -> None:
-            self._headers(status, content_type, len(payload), dashboard=dashboard)
+            self._headers(
+                status,
+                content_type,
+                len(payload),
+                dashboard=dashboard,
+                content_policy=content_policy,
+            )
             self.wfile.write(payload)
 
         def _send_json(self, value: Any, status: HTTPStatus = HTTPStatus.OK) -> None:
@@ -481,7 +498,13 @@ def _handler_factory(control: MissionControl) -> type[BaseHTTPRequestHandler]:
             self._send_bytes(payload, "application/json; charset=utf-8", status)
 
         def _error(self, error: Exception) -> None:
-            if isinstance(error, MissionControlError):
+            if isinstance(error, ControlPlaneUnavailable):
+                status = HTTPStatus.SERVICE_UNAVAILABLE
+                message = str(error)
+            elif isinstance(error, ControlPlaneAssetError):
+                status = HTTPStatus.NOT_FOUND
+                message = "route not found"
+            elif isinstance(error, MissionControlError):
                 status = error.status
                 message = str(error)
             else:
@@ -544,6 +567,28 @@ def _handler_factory(control: MissionControl) -> type[BaseHTTPRequestHandler]:
                     document = render_mission_control(control.csrf_token).encode("utf-8")
                     self._send_bytes(
                         document, "text/html; charset=utf-8", dashboard=True
+                    )
+                elif path in {"/control-plane", "/control-plane/"}:
+                    document = render_control_plane(control.csrf_token)
+                    self._send_bytes(
+                        document,
+                        "text/html; charset=utf-8",
+                        content_policy=CONTROL_PLANE_CSP,
+                    )
+                elif path.startswith("/control-plane/assets/"):
+                    asset = control_plane_asset(path)
+                    asset_type = (
+                        mimetypes.guess_type(asset.name)[0] or "application/octet-stream"
+                    )
+                    if asset_type.startswith("text/") or asset_type in {
+                        "application/javascript",
+                        "application/json",
+                    }:
+                        asset_type += "; charset=utf-8"
+                    self._send_bytes(
+                        asset.read_bytes(),
+                        asset_type,
+                        content_policy=CONTROL_PLANE_CSP,
                     )
                 elif path == "/api/state":
                     self._send_json({"ok": True, **control.state()})
@@ -628,6 +673,7 @@ def serve(
     server, _ = build_server(config)
     host, port = server.server_address[:2]
     announce(f"Mission Control: http://{host}:{port}")
+    announce(f"APR 3D Control Plane: http://{host}:{port}/control-plane")
     announce("Press Ctrl+C to stop. Runs remain in the configured runs directory.")
     try:
         server.serve_forever()
