@@ -1,6 +1,29 @@
 import type { Quality } from "../world/Scene";
 import type { MissionStoneState, WorldState } from "../runtime/worldState";
 
+/** What Sensei says right now, derived only from the runtime's own events. */
+const SENSEI_LINE: Record<string, string> = {
+  MISSION_ACCEPTED: "Misja przyjęta przez APR.",
+  PLAN_REQUESTED: "Tworzę plan misji…",
+  PLAN_ACCEPTED: "Plan zaakceptowany. Dobieram role agentów.",
+  AGENT_STARTED: "Uruchamiam agenta.",
+  AGENT_COMPLETED: "Agent zakończył pracę.",
+  HANDOFF: "Przekazuję artefakt dalej.",
+  RUN_STARTED: "Zbieram evidence.",
+  CONTRACT_ENFORCED: "Kontrakt artefaktów wyegzekwowany.",
+  RUN_COMPLETED: "Wykonanie zakończone. Czekam na weryfikację APR.",
+  VERIFICATION_COMPLETED: "Weryfikacja zakończona.",
+  MISSION_FAILED: "Misja nieudana.",
+};
+
+function senseiLine(world: WorldState): string {
+  if (world.connection === "OFFLINE") return "Nie mogę uruchomić misji — APR jest niedostępny.";
+  if (!world.sessionId) return "Czekam na zadanie.";
+  const last = world.log[world.log.length - 1];
+  if (!last) return "Czekam na zadanie.";
+  return SENSEI_LINE[last.worldEvent] ?? last.label;
+}
+
 const CONNECTION_LABEL = {
   CONNECTING: "ŁĄCZENIE…",
   ONLINE: "RUNTIME ONLINE",
@@ -33,6 +56,11 @@ export function Hud({
         <p className="brand">APR</p>
         <p className="brand__sub">APR 3D CONTROL PLANE</p>
         <p className="brand__tag">AGENT PROOF RUNTIME · CLAIM ≠ PROOF</p>
+        {world.missionTitle && (
+          <p className="brand__mission" id="mission-title">
+            MISJA · {world.missionTitle}
+          </p>
+        )}
       </div>
 
       <div className="hud__corner hud__corner--tr">
@@ -51,6 +79,9 @@ export function Hud({
         <button type="button" className="primary" onClick={onOpenSensei}>
           POROZMAWIAJ Z SENSEIEM
         </button>
+        <p className="sensei-hud" id="sensei-line">
+          SENSEI · {senseiLine(world)}
+        </p>
         <div className="statuses">
           <div>
             <span className="eyebrow">MISSION STONE</span>

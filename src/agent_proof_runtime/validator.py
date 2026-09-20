@@ -30,7 +30,11 @@ from .canonical import (
 from .chain import verify_event_chain
 from .merkle import merkle_root_from_step_hashes
 from .mission import MissionSpec, MissionValidationError, parse_mission
-from .mission_v1 import BuildWeekMission, parse_build_week_mission
+from .mission_v1 import (
+    SUPPORTED_PROVIDERS,
+    BuildWeekMission,
+    parse_build_week_mission,
+)
 from .acceptance import evaluate_acceptance
 
 TOP_LEVEL_KEYS = frozenset(
@@ -901,10 +905,12 @@ def _verify_build_week_loaded(
     errors.extend(_key_errors("provider", provider, PROVIDER_KEYS_BUILD_WEEK))
     if isinstance(provider, dict):
         provider_name = provider.get("provider")
-        if provider_name not in {"fixture", "openai"}:
-            errors.append("provider.provider must be fixture or openai")
+        if provider_name not in SUPPORTED_PROVIDERS:
+            errors.append(
+                "provider.provider must be " + ", ".join(sorted(SUPPORTED_PROVIDERS))
+            )
         if mission and provider_name != mission.provider and not (
-            provider_name in {"fixture", "openai"}
+            provider_name in SUPPORTED_PROVIDERS
         ):
             errors.append("provider selection is invalid")
         for field in ("requested_model", "resolved_model", "implementation_status"):
@@ -938,11 +944,13 @@ def _verify_build_week_loaded(
                     errors.append("fixture response_id must be null")
                 if provider.get("implementation_status") != "DETERMINISTIC_FIXTURE":
                     errors.append("fixture implementation_status mismatch")
-            elif provider_name == "openai" and provider.get("implementation_status") not in {
+            elif provider_name in {"openai", "openrouter"} and provider.get(
+                "implementation_status"
+            ) not in {
                 "IMPLEMENTED BUT NOT LIVE-VALIDATED",
                 "LIVE_API_REQUEST_EXECUTED",
             }:
-                errors.append("OpenAI implementation_status mismatch")
+                errors.append(f"{provider_name} implementation_status mismatch")
 
     run = bundle.get("run")
     errors.extend(_key_errors("run", run, RUN_KEYS))

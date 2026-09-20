@@ -28,6 +28,12 @@ from .build_week_runtime import (
 from .canonical import hash_json
 from .mission import MissionValidationError
 from .mission_v1 import BuildWeekMission, load_build_week_mission
+from . import generic_mission as generic
+from .model_gateway import (
+    ModelGatewayError,
+    model_client,
+    status_for_category,
+)
 from .mission_studio_openai import (
     MissionStudioOpenAIError,
     MissionStudioOpenAIProvider,
@@ -41,6 +47,8 @@ from .providers import (
 )
 
 MISSION_TYPE = "verified_website_build"
+GENERIC_MISSION_TYPE = generic.MISSION_TYPE
+GENERIC_PROVIDERS = frozenset({"fixture", "openrouter"})
 STUDIO_SESSION = re.compile(r"^studio-[0-9a-f]{32}$")
 STAGES = (
     ("planner", "Mission Planner Agent", "planning"),
@@ -87,6 +95,19 @@ FAILURE_MESSAGES = {
     "stage_contract_rejected": "The OpenAI stage output violated its fixed contract.",
     "runtime_io_failed": "APR could not materialize the Mission Studio run.",
     "runtime_failed": "Mission Studio could not complete the APR run.",
+    "request_invalid": "The mission request is not valid.",
+    "planner_invalid_json": "The planner did not return valid JSON.",
+    "planner_contract_invalid": "The plan violated the fixed mission-plan contract.",
+    "provider_not_configured": "The selected provider is not configured on the server.",
+    "openrouter_auth_failed": "The OpenRouter credentials were rejected.",
+    "openrouter_rate_limited": "The OpenRouter request was rate limited.",
+    "openrouter_server_error": "OpenRouter returned a server error.",
+    "openrouter_timeout": "The OpenRouter request timed out.",
+    "openrouter_connection_failed": "The OpenRouter connection failed.",
+    "openrouter_request_failed": "The OpenRouter request was rejected.",
+    "stage_failed": "A mission stage did not produce a usable artifact.",
+    "acceptance_failed": "The mission did not satisfy its acceptance checks.",
+    "verification_failed": "APR verification did not pass.",
 }
 
 
@@ -118,6 +139,8 @@ def load_packaged_mission() -> BuildWeekMission:
 
 def _failure_category(error: Exception) -> str:
     if isinstance(error, MissionStudioOpenAIError):
+        return error.category
+    if isinstance(error, (generic.GenericPlanError, ModelGatewayError)):
         return error.category
     if isinstance(error, FileNotFoundError):
         return "manifest_unavailable"
@@ -161,24 +184,35 @@ def _normalized_brief(value: Any) -> str:
 
 @dataclass(frozen=True)
 class MissionStudioRequest:
+    """A Mission Studio request.
+
+    Two mission types are accepted. ``verified_website_build`` keeps its exact
+    original contract; ``generic_v1`` takes a free-form prompt.
+    """
+
     mission_type: str
-    brief: str
+    brief: str = ""
     provider: str = "fixture"
+    prompt: str = ""
+    max_agents: int = generic.MAX_STAGES
 
     @classmethod
     def parse(cls, value: Any) -> "MissionStudioRequest":
         if not isinstance(value, dict):
             raise MissionStudioValidationError("request must be a JSON object")
+        mission_type = value.get("mission_type")
+        if mission_type == GENERIC_MISSION_TYPE:
+            return cls._parse_generic(value)
+        if mission_type != MISSION_TYPE:
+            raise MissionStudioValidationError(
+                f"mission_type must equal {MISSION_TYPE} or {GENERIC_MISSION_TYPE}"
+            )
         if set(value) not in (
             {"mission_type", "brief"},
             {"mission_type", "brief", "provider"},
         ):
             raise MissionStudioValidationError(
                 "request must contain mission_type, brief, and optional provider"
-            )
-        if value["mission_type"] != MISSION_TYPE:
-            raise MissionStudioValidationError(
-                f"mission_type must equal {MISSION_TYPE}"
             )
         provider = value.get("provider", "fixture")
         if provider not in {"fixture", "openai"}:
@@ -191,7 +225,47 @@ class MissionStudioRequest:
             provider=provider,
         )
 
-    def to_dict(self) -> dict[str, str]:
+    @classmethod
+    def _parse_generic(cls, value: dict[str, Any]) -> "MissionStudioRequest":
+        known = {"mission_type", "prompt", "provider", "max_agents"}
+        if "prompt" not in value or set(value) - known:
+            raise MissionStudioValidationError(
+                "request must contain mission_type, prompt, and optional provider "
+                "and max_agents"
+            )
+        provider = value.get("provider", "fixture")
+        if provider not in GENERIC_PROVIDERS:
+            raise MissionStudioValidationError(
+                "provider must equal " + " or ".join(sorted(GENERIC_PROVIDERS))
+            )
+        max_agents = value.get("max_agents", generic.MAX_STAGES)
+        if (
+            not isinstance(max_agents, int)
+            or isinstance(max_agents, bool)
+            or not 1 <= max_agents <= generic.MAX_STAGES
+        ):
+            raise MissionStudioValidationError(
+                f"max_agents must be an integer between 1 and {generic.MAX_STAGES}"
+            )
+        try:
+            prompt = generic.normalized_prompt(value["prompt"])
+        except generic.GenericPlanError as error:
+            raise MissionStudioValidationError(str(error)) from None
+        return cls(
+            mission_type=GENERIC_MISSION_TYPE,
+            provider=provider,
+            prompt=prompt,
+            max_agents=max_agents,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        if self.mission_type == GENERIC_MISSION_TYPE:
+            return {
+                "mission_type": self.mission_type,
+                "prompt": self.prompt,
+                "provider": self.provider,
+                "max_agents": self.max_agents,
+            }
         return {
             "mission_type": self.mission_type,
             "brief": self.brief,
@@ -447,16 +521,24 @@ class MissionStudioManager:
         run_lock: threading.Lock,
         stage_delay_seconds: float = 0.08,
         openai_client: Any | None = None,
+        model_transport: Any | None = None,
     ) -> None:
         self.runs_dir = runs_dir
         self.run_lock = run_lock
         self.stage_delay_seconds = max(0.0, stage_delay_seconds)
         self.openai_client = openai_client
+        # Tests inject a transport; production reaches the provider over HTTPS.
+        self.model_transport = model_transport
+        # Last observed provider outcome. Never a credential, never a claim
+        # about a call that did not happen.
+        self.last_provider_call: dict[str, str] = {}
         self._sessions: dict[str, dict[str, Any]] = {}
         self._lock = threading.Lock()
 
     def start(self, value: Any) -> dict[str, Any]:
         request = MissionStudioRequest.parse(value)
+        if request.mission_type == GENERIC_MISSION_TYPE:
+            return self._start_generic(request)
         model = (
             "fixture-v1"
             if request.provider == "fixture"
@@ -469,6 +551,10 @@ class MissionStudioManager:
             "session_id": session_id,
             "mission_type": request.mission_type,
             "brief": request.brief,
+            "prompt": request.prompt,
+            "mission_title": "Verified website build",
+            "plan": None,
+            "verification_scope": list(generic.VERIFICATION_SCOPE),
             "provider": request.provider,
             "model": model,
             "state": "queued",
@@ -514,6 +600,311 @@ class MissionStudioManager:
                 self._sessions.pop(session_id, None)
             raise
         return self.get(session_id)
+
+    # ------------------------------------------------------------------
+    # Generic missions
+    # ------------------------------------------------------------------
+
+    def _generic_model(self, request: MissionStudioRequest) -> str:
+        if request.provider == "fixture":
+            return "fixture-v1"
+        return model_client(request.provider).requested_model()
+
+    def _start_generic(self, request: MissionStudioRequest) -> dict[str, Any]:
+        model = self._generic_model(request)
+        if not self.run_lock.acquire(blocking=False):
+            raise RuntimeError("another mission is already running")
+        session_id = "studio-" + uuid.uuid4().hex
+        session = {
+            "session_id": session_id,
+            "mission_type": request.mission_type,
+            "brief": "",
+            "prompt": request.prompt,
+            "mission_title": None,
+            "plan": None,
+            "verification_scope": list(generic.VERIFICATION_SCOPE),
+            "provider": request.provider,
+            "model": model,
+            "max_agents": request.max_agents,
+            "state": "queued",
+            "progress": 0,
+            "current_stage": None,
+            "current_output_hash": None,
+            "current_handoff": None,
+            "agents": [],
+            "apr": {"status": "AWAITING PLAN"},
+            "events": [
+                {
+                    "id": "event-001",
+                    "type": "studio.mission_accepted",
+                    "timestamp": _timestamp(),
+                    "summary": "Zadanie operatora zostało przyjęte.",
+                }
+            ],
+            "apr_run_id": None,
+            "mission_status": None,
+            "proof_status": None,
+            "anchor_status": None,
+            "failure_category": None,
+            "error": None,
+        }
+        with self._lock:
+            self._sessions[session_id] = session
+        thread = threading.Thread(
+            target=self._run_generic, args=(session_id, request), daemon=True
+        )
+        try:
+            thread.start()
+        except Exception:
+            self.run_lock.release()
+            with self._lock:
+                self._sessions.pop(session_id, None)
+            raise
+        return self.get(session_id)
+
+    def _plan_for(
+        self, request: MissionStudioRequest, client: Any | None
+    ) -> generic.GenericMissionPlan:
+        if client is None:
+            return generic.fixture_plan(request.prompt, request.max_agents)
+        response = client.generate(
+            system=generic.PLANNER_SYSTEM_PROMPT.replace(
+                "{max_stages}", str(request.max_agents)
+            ),
+            user=generic.planner_user_prompt(request.prompt, request.max_agents),
+            max_output_tokens=2048,
+            timeout_seconds=60,
+            json_only=True,
+        )
+        return generic.parse_plan_json(response.text)
+
+    def _run_generic(self, session_id: str, request: MissionStudioRequest) -> None:
+        try:
+            client = (
+                None
+                if request.provider == "fixture"
+                else model_client(request.provider, transport=self.model_transport)
+            )
+            if client is not None and not client.configured():
+                raise generic.GenericPlanError(
+                    "the selected provider is not configured on this server",
+                    "provider_not_configured",
+                )
+
+            self._update(session_id, state="planning_mission", progress=4)
+            self._event(session_id, "studio.plan_requested", provider=request.provider)
+            plan = self._plan_for(request, client)
+            stage_count = len(plan.stages)
+
+            with self._lock:
+                session = self._sessions[session_id]
+                session["plan"] = plan.to_dict()
+                session["mission_title"] = plan.title
+                session["agents"] = [
+                    {
+                        "stage_id": stage.stage_id,
+                        "stage_name": stage.role,
+                        "status": "ready",
+                        "output_hash": None,
+                    }
+                    for stage in plan.stages
+                ]
+            self._event(
+                session_id,
+                "studio.plan_accepted",
+                title=plan.title,
+                stage_count=stage_count,
+                roles=[stage.role for stage in plan.stages],
+            )
+
+            mission = generic.build_manifest(
+                plan,
+                prompt=request.prompt,
+                provider=request.provider,
+                model=self._generic_model(request),
+            )
+            provider = generic.GenericStageProvider(
+                plan=plan,
+                prompt=request.prompt,
+                provider_name=request.provider,
+                client=client,
+            )
+
+            completed_progress = tuple(
+                round(8 + 64 * (index + 1) / stage_count) for index in range(stage_count)
+            )
+            for index, stage in enumerate(plan.stages):
+                self._update(
+                    session_id,
+                    state=stage.stage_id,
+                    progress=max(5, completed_progress[index] - 10),
+                    current_stage=stage.stage_id,
+                    current_handoff=None,
+                )
+                self._agent(session_id, stage.stage_id, status="working")
+                self._event(
+                    session_id,
+                    f"agent.{stage.stage_id}.started",
+                    stage_id=stage.stage_id,
+                    stage_name=stage.role,
+                )
+                if client is None:
+                    self._pause()
+                result = provider.run_stage(stage.stage_id)
+                self._agent(
+                    session_id,
+                    stage.stage_id,
+                    status="completed",
+                    output_hash=result["output_hash"],
+                )
+                self._update(
+                    session_id,
+                    progress=completed_progress[index],
+                    current_output_hash=result["output_hash"],
+                )
+                self._event(
+                    session_id,
+                    f"agent.{stage.stage_id}.completed",
+                    stage_id=stage.stage_id,
+                    stage_name=stage.role,
+                    summary=f"{stage.role}: {stage.instruction}",
+                    output_hash=result["output_hash"],
+                    artifact_path=result["artifact_path"],
+                    status="completed",
+                )
+                for destination in self._handoff_targets(plan, stage.stage_id, index):
+                    handoff = {
+                        "source_stage": stage.stage_id,
+                        "destination_stage": destination,
+                        "output_hash": result["output_hash"],
+                    }
+                    self._agent(session_id, stage.stage_id, status="handing_off")
+                    self._update(session_id, current_handoff=handoff)
+                    self._event(
+                        session_id,
+                        f"handoff.{stage.stage_id}_to_{destination}",
+                        **handoff,
+                    )
+                    self._pause()
+                self._agent(session_id, stage.stage_id, status="completed")
+
+            self._update(
+                session_id,
+                state="handoff_to_apr",
+                progress=78,
+                current_stage="apr",
+                apr={"status": "ENFORCING CONTRACT"},
+            )
+            self._event(session_id, "apr.run.started")
+            validate_proposal(mission, provider.proposal())
+            self._event(
+                session_id,
+                "apr.contract_enforced",
+                artifact_count=len(mission.artifact_contract.artifacts),
+            )
+            self._update(
+                session_id,
+                state="apr_verifying",
+                progress=86,
+                apr={"status": "RECORDING EVIDENCE"},
+            )
+            self._pause()
+            stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+            run_name = f"{stamp}-{mission.mission_id}-{uuid.uuid4().hex[:8]}"
+            result = run_build_week_mission(
+                mission,
+                self.runs_dir / run_name,
+                provider_name=request.provider,
+                provider=provider,
+            )
+            self._event(session_id, "apr.run.completed", run_id=run_name)
+            self._update(
+                session_id,
+                progress=94,
+                apr={"status": "VERIFYING"},
+                apr_run_id=run_name,
+            )
+            self._pause()
+            verification = result.verification
+            self._event(
+                session_id,
+                "verifier.completed",
+                status=verification.status,
+                anchor_status=verification.anchor_status,
+            )
+            completed = (
+                result.mission_status == "PASSED"
+                and verification.status == "LOCAL_VERIFIED"
+            )
+            if request.provider != "fixture":
+                self.last_provider_call[request.provider] = "LAST_CALL_OK"
+            self._update(
+                session_id,
+                state="completed" if completed else "failed",
+                progress=100,
+                current_handoff=None,
+                mission_status=result.mission_status,
+                proof_status=verification.status,
+                anchor_status=verification.anchor_status,
+                apr={"status": verification.status},
+            )
+        except Exception as error:  # session boundary
+            self._fail(session_id, error, provider_id=request.provider)
+        finally:
+            self.run_lock.release()
+
+    @staticmethod
+    def _handoff_targets(
+        plan: generic.GenericMissionPlan, stage_id: str, index: int
+    ) -> list[str]:
+        """Real edges from the validated plan, plus the final handoff to APR."""
+
+        targets = [
+            later.stage_id
+            for later in plan.stages[index + 1 :]
+            if stage_id in later.inputs
+        ]
+        if index == len(plan.stages) - 1:
+            targets.append("apr")
+        return targets
+
+    def _fail(self, session_id: str, error: Exception, *, provider_id: str) -> None:
+        failure_category = _failure_category(error)
+        if provider_id != "fixture":
+            self.last_provider_call[provider_id] = status_for_category(failure_category)
+        LOGGER.warning(
+            "mission_studio_failure %s",
+            json.dumps(
+                {"category": failure_category, "session": session_id},
+                ensure_ascii=True,
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+        )
+        with self._lock:
+            session = self._sessions[session_id]
+            session.update(
+                state="failed",
+                current_handoff=None,
+                proof_status="FAILED",
+                apr={"status": "FAILED"},
+                failure_category=failure_category,
+                error=FAILURE_MESSAGES.get(
+                    failure_category, FAILURE_MESSAGES["runtime_failed"]
+                ),
+            )
+            for agent in session["agents"]:
+                if agent["status"] in {"working", "handing_off"}:
+                    agent["status"] = "failed"
+            events = session["events"]
+            events.append(
+                {
+                    "id": f"event-{len(events) + 1:03d}",
+                    "type": "studio.mission_failed",
+                    "timestamp": _timestamp(),
+                    "category": failure_category,
+                }
+            )
 
     def get(self, session_id: str) -> dict[str, Any]:
         if not isinstance(session_id, str) or not STUDIO_SESSION.fullmatch(session_id):

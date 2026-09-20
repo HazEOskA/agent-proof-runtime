@@ -17,10 +17,44 @@ export interface AprSessionAgent {
   output_hash: string | null;
 }
 
+export interface AprPlanStage {
+  id: string;
+  role: string;
+  instruction: string;
+  expected_output: { type: string };
+  acceptance: Array<Record<string, unknown>>;
+  inputs: string[];
+}
+
+export interface AprMissionPlan {
+  version: string;
+  title: string;
+  goal: string;
+  stages: AprPlanStage[];
+}
+
+export interface AprProviderStatus {
+  provider: string;
+  model: string | null;
+  base_url: string | null;
+  status: string;
+}
+
+export interface AprServiceState {
+  name: string;
+  version: string;
+  mission_types?: string[];
+  providers?: AprProviderStatus[];
+}
+
 export interface AprSession {
   session_id: string;
   mission_type: string;
   brief: string;
+  prompt?: string;
+  mission_title?: string | null;
+  plan?: AprMissionPlan | null;
+  verification_scope?: string[];
   provider: string;
   model: string;
   state: string;

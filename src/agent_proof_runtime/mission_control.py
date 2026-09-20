@@ -45,6 +45,7 @@ from .control_plane import (
     control_plane_asset,
     render_control_plane,
 )
+from .model_gateway import OPENROUTER_ID, provider_status
 from .providers import ProviderError
 from .runtime import RunDirectoryExists, run_mission
 from .validator import verify_bundle
@@ -345,6 +346,15 @@ class MissionControl:
                 "trust_boundary": "local-operator",
                 "openai_configured": bool(os.environ.get("OPENAI_API_KEY")),
                 "mission_studio_openai_model": studio_openai_model,
+                "mission_types": ["verified_website_build", "generic_v1"],
+                # Provider status only. Credentials never leave the server,
+                # and a status never claims a call that did not happen.
+                "providers": [
+                    provider_status(
+                        OPENROUTER_ID,
+                        self._studio.last_provider_call.get(OPENROUTER_ID),
+                    )
+                ],
             },
             "doctor": _doctor_summary(),
             "missions": discover_missions(self.config.missions_dir),

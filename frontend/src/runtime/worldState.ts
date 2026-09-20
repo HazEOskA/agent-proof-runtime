@@ -1,4 +1,4 @@
-import type { AprEvent, AprSession } from "./types";
+import type { AprEvent, AprProviderStatus, AprSession } from "./types";
 
 export const SLOT_COUNT = 4;
 
@@ -51,6 +51,10 @@ export interface WorldState {
   connection: ConnectionState;
   sessionId: string | null;
   missionType: string | null;
+  missionTitle: string | null;
+  /** What APR proves for this mission, as the runtime reported it. */
+  verificationScope: string[];
+  providers: AprProviderStatus[];
   provider: string | null;
   model: string | null;
   runtimeState: string | null;
@@ -96,6 +100,9 @@ export function initialWorldState(): WorldState {
     connection: "CONNECTING",
     sessionId: null,
     missionType: null,
+    missionTitle: null,
+    verificationScope: [],
+    providers: [],
     provider: null,
     model: null,
     runtimeState: null,
@@ -121,6 +128,7 @@ export function resetMission(state: WorldState): WorldState {
   return {
     ...initialWorldState(),
     connection: state.connection,
+    providers: state.providers,
     clock: state.clock,
   };
 }
@@ -128,6 +136,16 @@ export function resetMission(state: WorldState): WorldState {
 /** Derives the visible role from the stage identifier the runtime reported. */
 export function roleFromStageId(stageId: string): string {
   return stageId.replace(/[_-]+/g, " ").trim().toUpperCase();
+}
+
+/**
+ * Generic missions carry a role the plan chose (ANALYST, CRITIC, ...). The
+ * fixed mission carries a stage name instead. Either way the label comes from
+ * the runtime, never from this scene.
+ */
+export function roleLabel(stageId: string, stageName: string | null): string {
+  if (stageName && /^[A-Z][A-Z0-9 _-]*$/.test(stageName)) return stageName;
+  return roleFromStageId(stageId);
 }
 
 export function slotForStage(state: WorldState, stageId: string): AgentSlot | undefined {
@@ -148,7 +166,14 @@ export function assignSlot(
   const existing = slotForStage(state, stageId);
   if (existing) {
     const slots = state.slots.map((slot) =>
-      slot.index === existing.index ? { ...slot, status, stageName: stageName ?? slot.stageName } : slot,
+      slot.index === existing.index
+        ? {
+            ...slot,
+            status,
+            stageName: stageName ?? slot.stageName,
+            role: roleLabel(stageId, stageName ?? slot.stageName),
+          }
+        : slot,
     );
     return { ...state, slots };
   }
@@ -165,7 +190,7 @@ export function assignSlot(
       ? {
           ...slot,
           stageId,
-          role: roleFromStageId(stageId),
+          role: roleLabel(stageId, stageName),
           stageName,
           status,
           outputHash: null,
@@ -204,6 +229,8 @@ export function applySessionSnapshot(state: WorldState, session: AprSession): Wo
     ...state,
     sessionId: session.session_id,
     missionType: session.mission_type,
+    missionTitle: session.mission_title ?? state.missionTitle,
+    verificationScope: session.verification_scope ?? state.verificationScope,
     provider: session.provider,
     model: session.model,
     runtimeState: session.state,

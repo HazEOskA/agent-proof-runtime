@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import type { MissionRequest } from "./api/aprClient";
 import { Hud } from "./ui/Hud";
 import { ProofBundleOverlay } from "./ui/ProofBundleOverlay";
 import { SenseiPanel } from "./ui/SenseiPanel";
@@ -23,8 +24,8 @@ export default function App() {
   const [supported] = useState(webglSupported);
 
   const startMission = useCallback(
-    async (brief: string, provider: string) => {
-      const started = await runtime.startMission(brief, provider);
+    async (request: MissionRequest) => {
+      const started = await runtime.startMission(request);
       if (started) setSenseiOpen(false);
     },
     [runtime],
@@ -68,8 +69,8 @@ export default function App() {
           setSenseiOpen(false);
           runtime.clearStartError();
         }}
-        onStart={(brief, provider) => {
-          void startMission(brief, provider);
+        onStart={(request) => {
+          void startMission(request);
         }}
       />
       <ProofBundleOverlay

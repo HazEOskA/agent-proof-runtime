@@ -141,6 +141,46 @@ button:focus-visible, a:focus-visible, textarea:focus-visible, select:focus-visi
   outline-offset: 2px;
 }
 
+.brand__mission {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  margin: 2px 0 0;
+  color: var(--cyan);
+  max-width: 46ch;
+}
+
+.sensei-hud {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  margin: 0;
+  padding: 7px 11px;
+  border: 1px solid var(--line);
+  background: rgba(4, 13, 16, 0.92);
+  color: var(--text);
+  max-width: min(520px, 62vw);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 12px;
+}
+
+.contract-note {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--muted);
+  border-left: 2px solid var(--cyan);
+  padding-left: 11px;
+}
+
+.facts dd.good { color: var(--green); }
+.facts dd.bad { color: var(--red); }
+
 .statuses {
   display: flex;
   gap: 1px;
@@ -292,6 +332,8 @@ textarea, select {
   .hud__corner--bl { grid-column: 1; grid-row: 3; }
   .hud__corner--br { grid-column: 1; grid-row: 4; align-items: flex-start; }
   .log { width: 100%; }
+  .row { grid-template-columns: 1fr; }
+  .sensei-hud { max-width: 100%; }
   .brand { font-size: 20px; }
   .split { grid-template-columns: 1fr; }
 }

@@ -110,6 +110,13 @@ def evaluate_acceptance(
                 size = target.stat().st_size if target is not None else None
                 actual = {"size": size}
                 passed = size is not None and size <= check["max_bytes"]
+            elif check_type == "minimum_size":
+                # Covers "the stage actually produced something" and any
+                # declared minimum length, without a second check family.
+                expected = {"min_bytes": check["min_bytes"]}
+                size = target.stat().st_size if target is not None else None
+                actual = {"size": size}
+                passed = size is not None and size >= check["min_bytes"]
             else:  # The strict manifest parser makes this unreachable.
                 expected = {}
                 actual = {"error": "unsupported check"}

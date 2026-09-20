@@ -1,4 +1,4 @@
-import type { AprRunDetail, AprSession } from "../runtime/types";
+import type { AprRunDetail, AprServiceState, AprSession } from "../runtime/types";
 
 /**
  * Thin client over the existing APR Mission Control endpoints.
@@ -89,14 +89,23 @@ export async function health(signal?: AbortSignal): Promise<boolean> {
   }
 }
 
-/** Starts the real Mission Studio contract. mission_type is fixed by the backend. */
-export async function startMission(input: {
-  mission_type: string;
-  brief: string;
-  provider: string;
-}): Promise<AprSession> {
+/**
+ * Starts a real Mission Studio run. The request shape belongs to the backend:
+ * `generic_v1` takes a free-form prompt, `verified_website_build` takes a brief.
+ */
+export type MissionRequest =
+  | { mission_type: "generic_v1"; prompt: string; provider: string; max_agents: number }
+  | { mission_type: "verified_website_build"; brief: string; provider: string };
+
+export async function startMission(input: MissionRequest): Promise<AprSession> {
   const value = await post("/api/studio/start", input);
   return value.session as AprSession;
+}
+
+/** Service state, including provider configuration status. Never a credential. */
+export async function readState(signal?: AbortSignal): Promise<AprServiceState> {
+  const value = await get("/api/state", signal);
+  return value.service as AprServiceState;
 }
 
 export async function readSession(sessionId: string, signal?: AbortSignal): Promise<AprSession> {

@@ -15,7 +15,7 @@ from .bundle import SCHEMA_VERSION_BUILD_WEEK, compute_bundle_hash, write_bundle
 from .canonical import CANONICALIZATION_PROFILE, HASH_ALGORITHM
 from .chain import EventChain
 from .merkle import merkle_root_from_step_hashes
-from .mission_v1 import BuildWeekMission, load_build_week_mission
+from .mission_v1 import SUPPORTED_PROVIDERS, BuildWeekMission, load_build_week_mission
 from .providers import ArtifactProposal, ArtifactProvider, provider_for
 from .report import write_report
 from .runtime import DemoRunResult, RunDirectoryExists
@@ -108,8 +108,10 @@ def run_build_week_mission(
         else mission
     )
     selected_provider = provider_name or spec.provider
-    if selected_provider not in {"fixture", "openai"}:
-        raise ValueError("provider override must be fixture or openai")
+    if selected_provider not in SUPPORTED_PROVIDERS:
+        raise ValueError(
+            "provider override must be " + ", ".join(sorted(SUPPORTED_PROVIDERS))
+        )
     artifact_provider = provider or provider_for(selected_provider)
     if artifact_provider.name != selected_provider:
         raise ValueError("injected provider name does not match selected provider")

@@ -62,6 +62,7 @@ Anchor:  UNANCHORED
 - **Tamper Lab** — mutates a copy and proves detection works
 - **Mission Studio** — seven-agent pipeline behind one proof boundary
 - **APR 3D Control Plane** — immersive 3D front end driven only by real runtime events
+- **Generic missions** — a free-form prompt becomes a validated plan, a real manifest and a real Proof Bundle
 
 ## Live demo
 

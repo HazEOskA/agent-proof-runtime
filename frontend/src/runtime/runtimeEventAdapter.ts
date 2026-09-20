@@ -18,6 +18,8 @@ import {
 
 export type WorldEventName =
   | "MISSION_ACCEPTED"
+  | "PLAN_REQUESTED"
+  | "PLAN_ACCEPTED"
   | "AGENT_STARTED"
   | "AGENT_COMPLETED"
   | "HANDOFF"
@@ -49,6 +51,27 @@ export function applyAprEvent(state: WorldState, event: AprEvent): WorldState {
       worldEvent: "MISSION_ACCEPTED",
       label: "Misja przyjęta przez APR",
       tone: "neutral",
+    });
+  }
+
+  if (type === "studio.plan_requested") {
+    return pushLog(state, {
+      worldEvent: "PLAN_REQUESTED",
+      label: "Sensei projektuje plan misji",
+      tone: "neutral",
+    });
+  }
+
+  if (type === "studio.plan_accepted") {
+    const title = text(event.title);
+    const stageCount = typeof event.stage_count === "number" ? event.stage_count : null;
+    return pushLog(state, {
+      worldEvent: "PLAN_ACCEPTED",
+      label:
+        stageCount === null
+          ? `Plan zaakceptowany: ${title ?? "misja"}`
+          : `Plan zaakceptowany: ${title ?? "misja"} · ${stageCount} etapów`,
+      tone: "good",
     });
   }
 

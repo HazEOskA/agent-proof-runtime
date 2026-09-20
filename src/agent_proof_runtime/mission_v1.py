@@ -18,6 +18,7 @@ from .mission import MissionValidationError
 MISSION_SCHEMA_VERSION_V1 = "apr.mission.v1"
 MAX_MISSION_BYTES_V1 = 1024 * 1024
 MISSION_ID = re.compile(r"^[a-z0-9][a-z0-9-]{2,63}$")
+SUPPORTED_PROVIDERS = frozenset({"fixture", "openai", "openrouter"})
 SAFE_MEDIA_TYPES = frozenset(
     {
         "application/json",
@@ -58,6 +59,7 @@ CHECK_KEYS = {
     "json_valid": frozenset({"id", "type", "path"}),
     "json_required_keys": frozenset({"id", "type", "path", "keys"}),
     "maximum_size": frozenset({"id", "type", "path", "max_bytes"}),
+    "minimum_size": frozenset({"id", "type", "path", "min_bytes"}),
 }
 
 
@@ -242,8 +244,8 @@ def parse_build_week_mission(
     title = _text(value.get("title"), label="title", minimum=3, maximum=160, errors=errors)
     goal = _text(value.get("goal"), label="goal", minimum=10, maximum=4000, errors=errors)
     provider = value.get("provider")
-    if provider not in {"fixture", "openai"}:
-        errors.append("provider must be fixture or openai")
+    if provider not in SUPPORTED_PROVIDERS:
+        errors.append("provider must be " + ", ".join(sorted(SUPPORTED_PROVIDERS)))
         provider = "invalid"
     model = _text(value.get("model"), label="model", minimum=1, maximum=128, errors=errors)
 
@@ -406,6 +408,11 @@ def parse_build_week_mission(
             elif check_type == "maximum_size":
                 _integer(
                     check["max_bytes"], label=f"{label}.max_bytes", minimum=1,
+                    maximum=max_total_bytes, errors=errors
+                )
+            elif check_type == "minimum_size":
+                _integer(
+                    check["min_bytes"], label=f"{label}.min_bytes", minimum=1,
                     maximum=max_total_bytes, errors=errors
                 )
             checks.append(dict(check))

@@ -25,7 +25,7 @@ export interface RuntimeApi {
   runDetail: AprRunDetail | null;
   starting: boolean;
   startError: string | null;
-  startMission: (brief: string, provider: string) => Promise<boolean>;
+  startMission: (request: apr.MissionRequest) => Promise<boolean>;
   clearStartError: () => void;
 }
 
@@ -47,6 +47,17 @@ export function useRuntime(): RuntimeApi {
         healthy = await apr.health(controller.signal);
       } catch {
         if (cancelled) return;
+      }
+      if (cancelled) return;
+      if (healthy) {
+        try {
+          const service = await apr.readState(controller.signal);
+          if (!cancelled) {
+            setWorld((state) => ({ ...state, providers: service.providers ?? [] }));
+          }
+        } catch {
+          /* provider status is informational; the world does not depend on it */
+        }
       }
       if (cancelled) return;
       setWorld((state) => {
@@ -153,15 +164,11 @@ export function useRuntime(): RuntimeApi {
     };
   }, [world.runId, world.proof]);
 
-  const startMission = useCallback(async (brief: string, provider: string): Promise<boolean> => {
+  const startMission = useCallback(async (request: apr.MissionRequest): Promise<boolean> => {
     setStarting(true);
     setStartError(null);
     try {
-      const session = await apr.startMission({
-        mission_type: "verified_website_build",
-        brief,
-        provider,
-      });
+      const session = await apr.startMission(request);
       terminalRef.current = false;
       sessionRef.current = session.session_id;
       setRunDetail(null);
