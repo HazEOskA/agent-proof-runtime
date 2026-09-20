@@ -75,6 +75,7 @@ Anchor:  UNANCHORED
 - [Project Manifesto](docs/PROJECT_MANIFESTO.md)
 - [Product Blueprint](docs/PRODUCT_BLUEPRINT.md)
 - [APR 3D Control Plane](docs/CONTROL_PLANE_3D.md)
+- [Deployment portability (GCP, Azure, AWS)](docs/DEPLOYMENT_PORTABILITY.md)
 - [Mission Studio](docs/MISSION_STUDIO.md)
 - [Mission Studio live OpenAI mode](docs/MISSION_STUDIO_OPENAI.md)
 - [Controlled live validation](docs/LIVE_VALIDATION.md)
