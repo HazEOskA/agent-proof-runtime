@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
+import { OrbitControls, Stars } from "@react-three/drei";
 import { Bloom, EffectComposer } from "@react-three/postprocessing";
 import * as THREE from "three";
 import { AgentStation } from "./AgentStation";
@@ -28,33 +28,42 @@ export function Scene({ world, stone, quality, controlsRef, onOpenSensei, onOpen
   return (
     <Canvas
       shadows={high}
-      dpr={high ? [1, 1.75] : [1, 1.1]}
+      dpr={high ? [1, 1.65] : [1, 1.05]}
       gl={{ antialias: high, powerPreference: "high-performance" }}
-      camera={{ position: [0, 18.5, 25.5], fov: 42, near: 0.1, far: 300 }}
+      camera={{ position: [0, 16.8, 27.8], fov: 40, near: 0.1, far: 320 }}
       onCreated={({ gl, scene }) => {
         gl.toneMapping = THREE.ACESFilmicToneMapping;
-        gl.toneMappingExposure = 1.05;
+        gl.toneMappingExposure = 0.88;
         scene.background = new THREE.Color(COLORS.void);
-        scene.fog = new THREE.Fog(COLORS.void, 40, 130);
+        scene.fog = new THREE.FogExp2(COLORS.void, 0.017);
       }}
     >
       <Suspense fallback={null}>
-        <ambientLight intensity={0.38} color="#3f7f8c" />
-        <hemisphereLight args={["#1d4e5a", "#03080b", 0.5]} />
+        {high && <Stars radius={120} depth={50} count={950} factor={2.2} saturation={0} fade speed={0.25} />}
+        <ambientLight intensity={0.24} color="#2d6972" />
+        <hemisphereLight args={["#174e58", "#020507", 0.42]} />
         <directionalLight
-          position={[12, 18, -10]}
-          intensity={0.85}
-          color="#77d7ff"
+          position={[14, 22, -14]}
+          intensity={0.95}
+          color="#88e8ff"
           castShadow={high}
           shadow-mapSize={[1024, 1024]}
         />
         <spotLight
-          position={[-14, 16, 12]}
-          angle={0.7}
-          penumbra={0.9}
-          intensity={42}
+          position={[-13, 18, 11]}
+          angle={0.58}
+          penumbra={0.92}
+          intensity={31}
           color={COLORS.cyan}
-          distance={70}
+          distance={62}
+        />
+        <spotLight
+          position={[13, 15, 8]}
+          angle={0.7}
+          penumbra={1}
+          intensity={19}
+          color={COLORS.violet}
+          distance={58}
         />
 
         <Dojo quality={quality} />
@@ -68,7 +77,7 @@ export function Scene({ world, stone, quality, controlsRef, onOpenSensei, onOpen
 
         {high && (
           <EffectComposer enableNormalPass={false}>
-            <Bloom intensity={0.42} luminanceThreshold={0.36} luminanceSmoothing={0.6} mipmapBlur />
+            <Bloom intensity={0.52} luminanceThreshold={0.62} luminanceSmoothing={0.72} mipmapBlur />
           </EffectComposer>
         )}
 
@@ -76,12 +85,15 @@ export function Scene({ world, stone, quality, controlsRef, onOpenSensei, onOpen
           ref={controlsRef as never}
           makeDefault
           enablePan={false}
-          minDistance={11}
-          maxDistance={52}
-          maxPolarAngle={Math.PI / 2.12}
-          target={[0, 2.0, 0]}
+          minDistance={12}
+          maxDistance={48}
+          minPolarAngle={0.48}
+          maxPolarAngle={Math.PI / 2.13}
+          target={[0, 2.1, 0]}
           enableDamping
-          dampingFactor={0.08}
+          dampingFactor={0.075}
+          autoRotate={world.execution === "IDLE"}
+          autoRotateSpeed={0.18}
         />
       </Suspense>
     </Canvas>

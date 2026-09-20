@@ -6,7 +6,7 @@ import { COLORS, IDLE_POSITIONS, STATION_POSITIONS, workPoint } from "./theme";
 import type { AgentSlot } from "../runtime/worldState";
 
 const STATUS_COLOR: Record<AgentSlot["status"], string> = {
-  IDLE: "#2c4a52",
+  IDLE: "#28474f",
   ASSIGNED: COLORS.blue,
   WORKING: COLORS.cyan,
   DONE: COLORS.green,
@@ -21,13 +21,10 @@ const STATUS_LABEL: Record<AgentSlot["status"], string> = {
   FAILED: "BŁĄD",
 };
 
-/**
- * One physical workstation. The avatar walks here when the runtime reports
- * that its stage started. The walk is interpolated; the decision is not.
- */
 export function AgentStation({ slot }: { slot: AgentSlot }) {
   const avatar = useRef<THREE.Group>(null);
   const column = useRef<THREE.Mesh>(null);
+  const ring = useRef<THREE.Mesh>(null);
   const station = STATION_POSITIONS[slot.index];
   const idle = IDLE_POSITIONS[slot.index];
   const work = workPoint(slot.index);
@@ -37,51 +34,63 @@ export function AgentStation({ slot }: { slot: AgentSlot }) {
   useFrame((frame, delta) => {
     if (avatar.current) {
       const target = engaged ? work : idle;
-      avatar.current.position.x = THREE.MathUtils.damp(avatar.current.position.x, target.x, 2.2, delta);
-      avatar.current.position.z = THREE.MathUtils.damp(avatar.current.position.z, target.z, 2.2, delta);
-      avatar.current.position.y = Math.abs(Math.sin(frame.clock.elapsedTime * 2.4 + slot.index)) * 0.05;
-      avatar.current.lookAt(engaged ? station.x : 0, 0.95, engaged ? station.z : 0);
+      avatar.current.position.x = THREE.MathUtils.damp(avatar.current.position.x, target.x, 2.5, delta);
+      avatar.current.position.z = THREE.MathUtils.damp(avatar.current.position.z, target.z, 2.5, delta);
+      avatar.current.position.y = Math.sin(frame.clock.elapsedTime * 1.35 + slot.index) * 0.035;
+      avatar.current.lookAt(engaged ? station.x : 0, 1.0, engaged ? station.z : 0);
     }
     if (column.current) {
       const material = column.current.material as THREE.MeshBasicMaterial;
-      const target = slot.status === "WORKING" ? 0.1 + Math.abs(Math.sin(frame.clock.elapsedTime * 2.6)) * 0.08 : 0.02;
-      material.opacity = THREE.MathUtils.damp(material.opacity, target, 3, delta);
+      const target = slot.status === "WORKING" ? 0.12 + Math.abs(Math.sin(frame.clock.elapsedTime * 2.2)) * 0.1 : 0.018;
+      material.opacity = THREE.MathUtils.damp(material.opacity, target, 3.2, delta);
     }
+    if (ring.current) ring.current.rotation.z += delta * (slot.status === "WORKING" ? 0.7 : 0.16);
   });
 
   return (
     <group>
       <group position={station}>
-        {/* pedestal */}
-        <mesh position={[0, 0.3, 0]} receiveShadow castShadow>
-          <cylinderGeometry args={[1.35, 1.5, 0.6, 6]} />
-          <meshStandardMaterial color="#0a1a20" roughness={0.55} metalness={0.55} />
-        </mesh>
-        {/* holographic desk */}
-        <mesh position={[0, 1.02, 0]} rotation={[-Math.PI / 2.6, 0, 0]}>
-          <planeGeometry args={[1.8, 1.0]} />
-          <meshBasicMaterial color={color} transparent opacity={0.16} side={THREE.DoubleSide} />
+        <mesh position={[0, 0.28, 0]} receiveShadow castShadow>
+          <cylinderGeometry args={[1.48, 1.68, 0.56, 8]} />
+          <meshStandardMaterial color="#08171c" roughness={0.46} metalness={0.62} />
         </mesh>
         <mesh position={[0, 0.62, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[1.08, 1.3, 42]} />
-          <meshBasicMaterial color={color} transparent opacity={0.5} />
+          <ringGeometry args={[1.12, 1.38, 56]} />
+          <meshBasicMaterial color={color} transparent opacity={slot.status === "IDLE" ? 0.28 : 0.68} />
         </mesh>
-        {/* activity column */}
-        <mesh ref={column} position={[0, 2.6, 0]}>
-          <cylinderGeometry args={[0.32, 0.52, 3.8, 18, 1, true]} />
-          <meshBasicMaterial color={color} transparent opacity={0.02} side={THREE.DoubleSide} depthWrite={false} />
+        <mesh position={[0, 1.06, 0]} rotation={[-Math.PI / 2.48, 0, 0]}>
+          <planeGeometry args={[2.0, 1.08]} />
+          <meshBasicMaterial color={color} transparent opacity={engaged ? 0.2 : 0.08} side={THREE.DoubleSide} />
         </mesh>
-        <pointLight position={[0, 1.7, 0]} color={color} intensity={slot.status === "WORKING" ? 3.2 : 0.9} distance={7} />
+        <mesh ref={ring} position={[0, 1.74, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.72, 0.018, 8, 56]} />
+          <meshBasicMaterial color={color} transparent opacity={engaged ? 0.62 : 0.18} />
+        </mesh>
+        <mesh ref={column} position={[0, 2.8, 0]}>
+          <cylinderGeometry args={[0.34, 0.62, 4.1, 22, 1, true]} />
+          <meshBasicMaterial color={color} transparent opacity={0.018} side={THREE.DoubleSide} depthWrite={false} />
+        </mesh>
 
-        {/* artifact shard, present once the stage produced a hash */}
+        <pointLight
+          position={[0, 1.7, 0]}
+          color={color}
+          intensity={slot.status === "WORKING" ? 3.8 : slot.status === "DONE" ? 1.6 : 0.65}
+          distance={8}
+        />
+
         {slot.outputHash && (
-          <mesh position={[0, 1.85, 0]} rotation={[0.4, 0.6, 0]}>
-            <octahedronGeometry args={[0.28, 0]} />
-            <meshStandardMaterial color={COLORS.green} emissive={COLORS.green} emissiveIntensity={0.65} />
-          </mesh>
+          <group position={[0, 1.92, 0]}>
+            <mesh rotation={[0.45, 0.65, 0]}>
+              <octahedronGeometry args={[0.31, 0]} />
+              <meshStandardMaterial color={COLORS.green} emissive={COLORS.green} emissiveIntensity={0.8} metalness={0.45} />
+            </mesh>
+            <Html position={[0, 0.58, 0]} center distanceFactor={20} zIndexRange={[13, 0]}>
+              <span className="artifact-label">ARTIFACT · {slot.outputHash.slice(0, 10)}…</span>
+            </Html>
+          </group>
         )}
 
-        <Html position={[0, 2.85, 0]} center distanceFactor={19} zIndexRange={[15, 0]}>
+        <Html position={[0, 3.04, 0]} center distanceFactor={18} zIndexRange={[15, 0]}>
           <span className="station-label" style={{ borderColor: color }}>
             <b>AGENT 0{slot.index + 1}</b>
             <i style={{ color }}>{slot.role ?? STATUS_LABEL[slot.status]}</i>
@@ -90,23 +99,22 @@ export function AgentStation({ slot }: { slot: AgentSlot }) {
         </Html>
       </group>
 
-      {/* the agent itself */}
       <group ref={avatar} position={[idle.x, 0, idle.z]}>
-        <mesh position={[0, 0.72, 0]} castShadow>
-          <capsuleGeometry args={[0.24, 0.64, 6, 14]} />
-          <meshStandardMaterial color="#12272e" roughness={0.6} metalness={0.35} />
+        <mesh position={[0, 0.76, 0]} castShadow>
+          <capsuleGeometry args={[0.28, 0.72, 7, 16]} />
+          <meshStandardMaterial color="#10252c" roughness={0.5} metalness={0.42} />
         </mesh>
-        <mesh position={[0, 1.34, 0]} castShadow>
-          <sphereGeometry args={[0.21, 18, 14]} />
-          <meshStandardMaterial color="#183a44" roughness={0.45} metalness={0.4} />
+        <mesh position={[0, 1.4, 0]} castShadow>
+          <sphereGeometry args={[0.23, 20, 16]} />
+          <meshStandardMaterial color="#17343e" roughness={0.4} metalness={0.45} />
         </mesh>
-        <mesh position={[0, 1.34, 0.18]}>
-          <sphereGeometry args={[0.07, 12, 10]} />
-          <meshBasicMaterial color={color} />
+        <mesh position={[0, 1.4, 0.21]}>
+          <planeGeometry args={[0.16, 0.07]} />
+          <meshBasicMaterial color={color} transparent opacity={0.92} />
         </mesh>
-        <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[0.3, 0.42, 24]} />
-          <meshBasicMaterial color={color} transparent opacity={0.6} />
+        <mesh position={[0, 0.06, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[0.34, 0.46, 28]} />
+          <meshBasicMaterial color={color} transparent opacity={engaged ? 0.78 : 0.36} />
         </mesh>
       </group>
     </group>

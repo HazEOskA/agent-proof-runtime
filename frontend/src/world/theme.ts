@@ -1,23 +1,25 @@
 import * as THREE from "three";
 
 export const COLORS = {
-  void: "#03080b",
-  deck: "#081519",
-  deckEdge: "#0d2329",
-  line: "#1d3f47",
-  cyan: "#36f0e4",
-  cyanDeep: "#0f6f6c",
-  blue: "#75a9ff",
-  green: "#68f79a",
-  amber: "#f4bd56",
-  red: "#ff5d68",
-  bone: "#eef9fa",
+  void: "#020609",
+  deck: "#071317",
+  deckEdge: "#102a30",
+  line: "#19434b",
+  cyan: "#38f2e4",
+  cyanSoft: "#79fff4",
+  cyanDeep: "#0d706d",
+  blue: "#7aa8ff",
+  green: "#6df5a0",
+  amber: "#f6c45f",
+  red: "#ff5e6c",
+  violet: "#8d7cff",
+  bone: "#effcfc",
 } as const;
 
-export const STATION_RADIUS = 9.4;
-export const IDLE_RADIUS = 4.4;
+export const STATION_RADIUS = 9.6;
+export const IDLE_RADIUS = 4.7;
+export const ARENA_RADIUS = STATION_RADIUS + 5.0;
 
-/** AGENT 01 back, 02 left, 03 right, 04 front — the locked station layout. */
 export const STATION_POSITIONS: THREE.Vector3[] = [
   new THREE.Vector3(0, 0, -STATION_RADIUS),
   new THREE.Vector3(-STATION_RADIUS, 0, 0),
@@ -30,18 +32,17 @@ export const IDLE_POSITIONS: THREE.Vector3[] = STATION_POSITIONS.map((position) 
 );
 
 export const SENSEI_POSITION = new THREE.Vector3(0, 0, 0);
-export const STONE_POSITION = new THREE.Vector3(0, 0, 5.1);
-export const CORE_POSITION = new THREE.Vector3(0, 6.5, 0);
+export const STONE_POSITION = new THREE.Vector3(0, 0, 5.25);
+export const CORE_POSITION = new THREE.Vector3(0, 7.1, 0);
 
-export const HANDOFF_DURATION_MS = 1500;
+export const HANDOFF_DURATION_MS = 1650;
 
-/** Where an agent stands while working: in front of its station, facing in. */
 export function workPoint(index: number): THREE.Vector3 {
   const station = STATION_POSITIONS[index];
-  return station.clone().multiplyScalar((STATION_RADIUS - 2.3) / STATION_RADIUS);
+  return station.clone().multiplyScalar((STATION_RADIUS - 2.25) / STATION_RADIUS);
 }
 
 export function stationPoint(index: number | null): THREE.Vector3 {
   if (index === null || index < 0 || index >= STATION_POSITIONS.length) return CORE_POSITION.clone();
-  return STATION_POSITIONS[index].clone().setY(1.5);
+  return STATION_POSITIONS[index].clone().setY(1.65);
 }

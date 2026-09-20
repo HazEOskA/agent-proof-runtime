@@ -21,12 +21,11 @@ const EXECUTION_LABEL: Record<ExecutionStatus, string> = {
 
 const PROOF_LABEL: Record<ProofStatus, string> = {
   NONE: "BRAK",
-  PENDING: "OCZEKUJE NA WERYFIKACJĘ",
+  PENDING: "PENDING",
   VERIFIED: "LOCAL_VERIFIED",
-  FAILED: "NIEZWERYFIKOWANE",
+  FAILED: "FAILED",
 };
 
-/** APR PROOF CORE. Execution and proof are shown apart, never merged. */
 export function ProofCore({
   execution,
   proof,
@@ -44,39 +43,43 @@ export function ProofCore({
   useFrame((frame, delta) => {
     const t = frame.clock.elapsedTime;
     if (core.current) {
-      core.current.rotation.y += delta * 0.4;
-      core.current.rotation.x += delta * 0.15;
-      const pulse = proof === "PENDING" ? 1 + Math.sin(t * 3.4) * 0.09 : 1;
+      core.current.rotation.y += delta * 0.34;
+      core.current.rotation.x += delta * 0.1;
+      const pulse = proof === "PENDING" ? 1 + Math.sin(t * 3.1) * 0.1 : proof === "VERIFIED" ? 1.04 : 1;
       core.current.scale.setScalar(pulse);
     }
-    if (ringA.current) ringA.current.rotation.z += delta * (proof === "PENDING" ? 1.3 : 0.4);
-    if (ringB.current) ringB.current.rotation.x -= delta * (proof === "PENDING" ? 0.9 : 0.25);
+    if (ringA.current) ringA.current.rotation.z += delta * (proof === "PENDING" ? 1.5 : 0.34);
+    if (ringB.current) ringB.current.rotation.x -= delta * (proof === "PENDING" ? 1.0 : 0.22);
   });
 
   return (
     <group position={CORE_POSITION} onClick={onOpen}>
       <mesh ref={core}>
-        <icosahedronGeometry args={[0.92, 1]} />
+        <icosahedronGeometry args={[1.0, 1]} />
         <meshStandardMaterial
-          color="#08181d"
+          color="#061419"
           emissive={color}
-          emissiveIntensity={0.7}
-          roughness={0.25}
-          metalness={0.8}
+          emissiveIntensity={proof === "VERIFIED" ? 0.92 : 0.68}
+          roughness={0.2}
+          metalness={0.84}
           flatShading
         />
       </mesh>
+      <mesh position={[0, 0, 0]}>
+        <sphereGeometry args={[0.46, 20, 16]} />
+        <meshBasicMaterial color={color} transparent opacity={proof === "NONE" ? 0.12 : 0.34} />
+      </mesh>
       <mesh ref={ringA} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[1.7, 0.026, 8, 80]} />
-        <meshBasicMaterial color={color} transparent opacity={0.85} />
+        <torusGeometry args={[1.8, 0.028, 8, 88]} />
+        <meshBasicMaterial color={color} transparent opacity={0.82} />
       </mesh>
       <mesh ref={ringB} rotation={[0, 0, Math.PI / 3]}>
-        <torusGeometry args={[2.25, 0.015, 8, 80]} />
-        <meshBasicMaterial color={color} transparent opacity={0.5} />
+        <torusGeometry args={[2.35, 0.016, 8, 88]} />
+        <meshBasicMaterial color={color} transparent opacity={0.44} />
       </mesh>
-      <pointLight color={color} intensity={7} distance={17} />
+      <pointLight color={color} intensity={proof === "VERIFIED" ? 8.5 : 6.2} distance={18} />
 
-      <Html position={[0, 2.85, 0]} center distanceFactor={20} zIndexRange={[22, 0]}>
+      <Html position={[0, 3.18, 0]} center distanceFactor={19} zIndexRange={[22, 0]}>
         <span className="core-label" style={{ borderColor: color }}>
           <b>APR PROOF CORE</b>
           <u>WYKONANIE · {EXECUTION_LABEL[execution]}</u>

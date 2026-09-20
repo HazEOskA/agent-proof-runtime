@@ -1,7 +1,6 @@
 import type { Quality } from "../world/Scene";
 import type { MissionStoneState, WorldState } from "../runtime/worldState";
 
-/** What Sensei says right now, derived only from the runtime's own events. */
 const SENSEI_LINE: Record<string, string> = {
   MISSION_ACCEPTED: "Misja przyjęta przez APR.",
   PLAN_REQUESTED: "Tworzę plan misji…",
@@ -11,13 +10,13 @@ const SENSEI_LINE: Record<string, string> = {
   HANDOFF: "Przekazuję artefakt dalej.",
   RUN_STARTED: "Zbieram evidence.",
   CONTRACT_ENFORCED: "Kontrakt artefaktów wyegzekwowany.",
-  RUN_COMPLETED: "Wykonanie zakończone. Czekam na weryfikację APR.",
-  VERIFICATION_COMPLETED: "Weryfikacja zakończona.",
+  RUN_COMPLETED: "Wykonanie zakończone. Proof jeszcze nie jest zatwierdzony.",
+  VERIFICATION_COMPLETED: "APR zakończył weryfikację.",
   MISSION_FAILED: "Misja nieudana.",
 };
 
 function senseiLine(world: WorldState): string {
-  if (world.connection === "OFFLINE") return "Nie mogę uruchomić misji — APR jest niedostępny.";
+  if (world.connection === "OFFLINE") return "APR jest niedostępny — bez backendu nie uruchamiam świata.";
   if (!world.sessionId) return "Czekam na zadanie.";
   const last = world.log[world.log.length - 1];
   if (!last) return "Czekam na zadanie.";
@@ -53,9 +52,12 @@ export function Hud({
   return (
     <div className="hud">
       <div className="hud__corner hud__corner--tl">
-        <p className="brand">APR</p>
-        <p className="brand__sub">APR 3D CONTROL PLANE</p>
-        <p className="brand__tag">AGENT PROOF RUNTIME · CLAIM ≠ PROOF</p>
+        <div className="hero-lockup">
+          <p className="brand">APR</p>
+          <p className="brand__sub">AGENT PROOF RUNTIME · 3D CONTROL PLANE</p>
+          <p className="brand__statement">CLAIM ≠ PROOF</p>
+          <p className="brand__flow">EXECUTION · EVIDENCE · VERIFICATION</p>
+        </div>
         {world.missionTitle && (
           <p className="brand__mission" id="mission-title">
             MISJA · {world.missionTitle}
@@ -64,7 +66,7 @@ export function Hud({
       </div>
 
       <div className="hud__corner hud__corner--tr">
-        <span id="connection-state" className={`chip ${connectionTone}`}>
+        <span id="connection-state" className={"chip " + connectionTone}>
           {CONNECTION_LABEL[world.connection]}
         </span>
         <button type="button" className="ghost" onClick={onToggleQuality}>
@@ -84,7 +86,7 @@ export function Hud({
         </p>
         <div className="statuses">
           <div>
-            <span className="eyebrow">MISSION STONE</span>
+            <span className="eyebrow">MISSION</span>
             <strong id="stone-state">{stone}</strong>
           </div>
           <div>
@@ -106,18 +108,22 @@ export function Hud({
 
       <div className="hud__corner hud__corner--br">
         <div className="log" id="world-log">
-          <p className="eyebrow">ZDARZENIA ŚWIATA (Z APR)</p>
+          <p className="eyebrow">LIVE TRACE · APR EVENTS</p>
           {world.log.length === 0 && <p className="log__empty">Brak zdarzeń runtime.</p>}
-          {world.log.slice(-7).map((entry) => (
-            <p key={entry.id} className={`log__row ${entry.tone}`} data-world-event={entry.worldEvent}>
+          {world.log.slice(-5).map((entry) => (
+            <p key={entry.id} className={"log__row " + entry.tone} data-world-event={entry.worldEvent}>
               <b>{entry.worldEvent}</b>
               <span>{entry.label}</span>
             </p>
           ))}
         </div>
+        <div className="micro-tags">
+          <span>#VERIFIABLEAI</span>
+          <span>#PROOFBUNDLE</span>
+        </div>
         {world.runId && (
-          <button type="button" className="ghost" onClick={onOpenProof}>
-            PROOF BUNDLE
+          <button type="button" className="ghost proof-button" onClick={onOpenProof}>
+            OTWÓRZ PROOF BUNDLE
           </button>
         )}
       </div>
