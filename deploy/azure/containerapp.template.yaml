@@ -1,0 +1,85 @@
+# APR 3D Control Plane — Azure Container Apps template
+#
+# Replace every <PLACEHOLDER> before applying.
+# The Azure Files environment storage named "apr-runs" must already exist.
+# The user-assigned identity must have AcrPull on the selected registry.
+
+location: westeurope
+name: apr-3d-control-plane
+type: Microsoft.App/containerApps
+
+identity:
+  type: UserAssigned
+  userAssignedIdentities:
+    <USER_ASSIGNED_IDENTITY_RESOURCE_ID>: {}
+
+properties:
+  managedEnvironmentId: <MANAGED_ENVIRONMENT_RESOURCE_ID>
+
+  configuration:
+    activeRevisionsMode: Single
+    ingress:
+      external: true
+      allowInsecure: false
+      targetPort: 8080
+      transport: auto
+      traffic:
+        - latestRevision: true
+          weight: 100
+    registries:
+      - server: <ACR_LOGIN_SERVER>
+        identity: <USER_ASSIGNED_IDENTITY_RESOURCE_ID>
+
+  template:
+    containers:
+      - name: apr
+        image: <ACR_LOGIN_SERVER>/apr-3d-control-plane:<IMAGE_TAG>
+        env:
+          - name: PORT
+            value: "8080"
+          - name: APR_CONTROL_PLANE_DIST
+            value: /app/frontend/dist
+        resources:
+          cpu: 1.0
+          memory: 2Gi
+        volumeMounts:
+          - volumeName: apr-runs
+            mountPath: /app/.runs
+        probes:
+          - type: Startup
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            failureThreshold: 10
+          - type: Liveness
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            failureThreshold: 3
+          - type: Readiness
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+
+    scale:
+      minReplicas: 1
+      maxReplicas: 1
+      rules:
+        - name: apr-http
+          http:
+            metadata:
+              concurrentRequests: "1"
+
+    volumes:
+      - name: apr-runs
+        storageType: AzureFile
+        storageName: apr-runs
+
+  workloadProfileName: Consumption
