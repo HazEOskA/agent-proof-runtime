@@ -52,7 +52,7 @@ interface DojoShellProps {
 }
 
 export function DojoShell({ world, stone, onOpenSensei, onOpenProof }: DojoShellProps) {
-  const latestEvent = world.log.at(-1);
+  const latestEvent = world.log.length > 0 ? world.log[world.log.length - 1] : undefined;
   const visibleHandoffs = useMemo(() => world.handoffs.slice(-5), [world.handoffs]);
 
   return (
