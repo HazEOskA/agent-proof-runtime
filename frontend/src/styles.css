@@ -407,3 +407,538 @@ textarea, select {
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
+
+
+/* -------------------------------------------------------------------------- */
+/* OSA AGENT DOJO -> APR shell                                                */
+/* -------------------------------------------------------------------------- */
+
+.dojo-stage {
+  background: #020609;
+}
+
+.osa-dojo {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  color: #e8fbff;
+  background:
+    radial-gradient(circle at 50% 54%, rgba(0, 229, 255, 0.08), transparent 24%),
+    radial-gradient(circle at 50% 36%, rgba(127, 70, 255, 0.10), transparent 28%),
+    linear-gradient(180deg, #030a0e 0%, #020609 54%, #010304 100%);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.osa-dojo::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(29, 201, 226, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(29, 201, 226, 0.035) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: linear-gradient(to bottom, transparent, black 18%, black 80%, transparent);
+  pointer-events: none;
+}
+
+.osa-dojo__hero-ghost {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  width: min(880px, 78vw);
+  transform: translateX(-50%);
+  opacity: 0.055;
+  filter: saturate(0.6) contrast(1.25);
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+
+.osa-dojo__topline {
+  position: absolute;
+  z-index: 20;
+  inset: 18px 24px auto 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+}
+
+.osa-dojo__identity,
+.osa-dojo__runtime {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.osa-dojo__identity img {
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  opacity: 0.92;
+  box-shadow: 0 0 22px rgba(41, 224, 255, 0.2);
+}
+
+.osa-dojo__identity div,
+.osa-dojo__mission div {
+  display: grid;
+  gap: 2px;
+}
+
+.osa-dojo__identity strong {
+  font-size: 13px;
+  letter-spacing: 0.15em;
+}
+
+.osa-dojo__identity span,
+.osa-dojo__runtime,
+.osa-dojo__mission small,
+.osa-dojo__proof-strip small {
+  color: #7c9ba3;
+  font-size: 10px;
+  letter-spacing: 0.13em;
+}
+
+.osa-dojo__runtime {
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.runtime-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #75848a;
+}
+
+.runtime-dot--online {
+  background: #4cffba;
+  box-shadow: 0 0 14px #4cffba;
+}
+
+.runtime-dot--offline {
+  background: #ff4c6a;
+  box-shadow: 0 0 14px #ff4c6a;
+}
+
+.osa-dojo__graffiti {
+  position: absolute;
+  z-index: 10;
+  top: 88px;
+  left: 50%;
+  transform: translateX(-50%) skewX(-7deg);
+  color: rgba(156, 236, 255, 0.78);
+  font-size: clamp(14px, 1.5vw, 22px);
+  font-weight: 900;
+  letter-spacing: 0.24em;
+  text-shadow: 0 0 18px rgba(0, 224, 255, 0.32);
+}
+
+.osa-dojo__arena {
+  position: absolute;
+  inset: 108px 24px 108px;
+  overflow: hidden;
+  border: 1px solid rgba(66, 211, 234, 0.10);
+  clip-path: polygon(2% 0, 98% 0, 100% 4%, 100% 96%, 98% 100%, 2% 100%, 0 96%, 0 4%);
+  background:
+    radial-gradient(circle at 50% 52%, rgba(7, 50, 57, 0.72), rgba(2, 8, 11, 0.92) 33%, rgba(1, 4, 6, 0.98) 72%);
+}
+
+.dojo-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0, 219, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 219, 255, 0.04) 1px, transparent 1px);
+  background-size: 38px 38px;
+  perspective: 500px;
+  opacity: 0.55;
+}
+
+.dojo-ring {
+  position: absolute;
+  left: 50%;
+  top: 53%;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(46, 218, 238, 0.22);
+  box-shadow: inset 0 0 40px rgba(0, 225, 255, 0.03), 0 0 30px rgba(0, 225, 255, 0.04);
+}
+
+.dojo-ring--outer {
+  width: min(70vw, 820px);
+  aspect-ratio: 1.75 / 1;
+}
+
+.dojo-ring--inner {
+  width: min(37vw, 430px);
+  aspect-ratio: 1.4 / 1;
+  border-color: rgba(143, 95, 255, 0.24);
+}
+
+.dojo-axis {
+  position: absolute;
+  background: linear-gradient(90deg, transparent, rgba(0, 225, 255, 0.18), transparent);
+  pointer-events: none;
+}
+
+.dojo-axis--x {
+  left: 18%;
+  right: 18%;
+  top: 53%;
+  height: 1px;
+}
+
+.dojo-axis--y {
+  top: 16%;
+  bottom: 12%;
+  left: 50%;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, rgba(0, 225, 255, 0.18), transparent);
+}
+
+.dojo-handoffs {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.dojo-handoff-line {
+  stroke: #5eefff;
+  stroke-width: 0.36;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.8;
+  stroke-dasharray: 4 8;
+  animation: dojo-transfer 0.9s linear infinite;
+  filter: drop-shadow(0 0 5px rgba(46, 229, 255, 0.8));
+}
+
+@keyframes dojo-transfer {
+  to { stroke-dashoffset: -24; }
+}
+
+.dojo-core {
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  top: 53%;
+  width: 176px;
+  height: 176px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 1px solid rgba(55, 225, 255, 0.34);
+  background: radial-gradient(circle at 50% 42%, rgba(18, 71, 82, 0.94), rgba(3, 13, 17, 0.97) 58%, rgba(1, 4, 6, 0.98));
+  color: #dffaff;
+  cursor: pointer;
+  box-shadow: 0 0 46px rgba(0, 222, 255, 0.10), inset 0 0 35px rgba(0, 222, 255, 0.05);
+  display: grid;
+  place-content: center;
+  gap: 5px;
+  text-align: center;
+}
+
+.dojo-core:hover {
+  border-color: rgba(85, 239, 255, 0.72);
+}
+
+.dojo-core__orbit {
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  border: 1px dashed rgba(73, 227, 248, 0.22);
+  animation: dojo-orbit 18s linear infinite;
+}
+
+.dojo-core__orbit--two {
+  inset: -24px;
+  border-color: rgba(150, 90, 255, 0.18);
+  animation-duration: 28s;
+  animation-direction: reverse;
+}
+
+@keyframes dojo-orbit {
+  to { transform: rotate(360deg); }
+}
+
+.dojo-core small,
+.dojo-agent small,
+.dojo-event small {
+  color: #75969e;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+}
+
+.dojo-core strong {
+  color: #80edf8;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+}
+
+.dojo-core em {
+  color: #4f7078;
+  font-size: 9px;
+  font-style: normal;
+}
+
+.dojo-core--verified {
+  border-color: rgba(72, 255, 181, 0.55);
+  box-shadow: 0 0 58px rgba(72, 255, 181, 0.14), inset 0 0 35px rgba(72, 255, 181, 0.05);
+}
+
+.dojo-core--failed {
+  border-color: rgba(255, 74, 108, 0.55);
+}
+
+.dojo-agent {
+  position: absolute;
+  z-index: 6;
+  width: 154px;
+  transform: translate(-50%, -50%);
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  text-align: center;
+  transition: transform 180ms ease, opacity 180ms ease;
+}
+
+.dojo-agent__avatar {
+  position: relative;
+  z-index: 2;
+  width: 58px;
+  height: 58px;
+  border-radius: 16px 4px 16px 4px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(145deg, #0a2129, #061015);
+  border: 1px solid rgba(67, 218, 239, 0.26);
+  color: #8deef8;
+  font-size: 24px;
+  font-weight: 900;
+  box-shadow: 0 0 24px rgba(0, 215, 255, 0.07);
+}
+
+.dojo-agent__halo {
+  position: absolute;
+  top: -8px;
+  width: 74px;
+  height: 74px;
+  border-radius: 50%;
+  border: 1px solid rgba(59, 224, 246, 0.10);
+}
+
+.dojo-agent strong {
+  color: #e8fbff;
+  font-size: 13px;
+  letter-spacing: 0.18em;
+}
+
+.dojo-agent span {
+  color: #64cddd;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dojo-agent code {
+  color: #557982;
+  font-size: 8px;
+}
+
+.dojo-agent--working .dojo-agent__avatar {
+  border-color: rgba(87, 239, 255, 0.88);
+  box-shadow: 0 0 38px rgba(0, 225, 255, 0.28), inset 0 0 18px rgba(0, 225, 255, 0.08);
+  animation: dojo-working 1.2s ease-in-out infinite alternate;
+}
+
+.dojo-agent--done .dojo-agent__avatar {
+  border-color: rgba(72, 255, 181, 0.56);
+  color: #76ffc1;
+}
+
+.dojo-agent--failed .dojo-agent__avatar {
+  border-color: rgba(255, 74, 108, 0.75);
+  color: #ff718a;
+}
+
+.dojo-agent--assigned .dojo-agent__avatar {
+  border-color: rgba(157, 104, 255, 0.62);
+}
+
+@keyframes dojo-working {
+  to { transform: translateY(-3px); }
+}
+
+.dojo-event {
+  position: absolute;
+  z-index: 7;
+  left: 50%;
+  bottom: 8%;
+  width: min(520px, 76vw);
+  transform: translateX(-50%);
+  display: grid;
+  gap: 3px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.dojo-event strong {
+  color: #85effa;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+}
+
+.dojo-event span {
+  color: #7f9ba2;
+  font-size: 10px;
+}
+
+.dojo-event--good strong { color: #65ffc0; }
+.dojo-event--bad strong { color: #ff6884; }
+
+.osa-dojo__mission {
+  position: absolute;
+  z-index: 20;
+  left: 28px;
+  bottom: 22px;
+  display: flex;
+  align-items: end;
+  gap: 18px;
+}
+
+.osa-dojo__mission strong {
+  max-width: 330px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.osa-dojo__mission span {
+  color: #6d8d96;
+  font-size: 9px;
+}
+
+.osa-dojo__mission button,
+.proof-strip__proof {
+  border: 1px solid rgba(74, 222, 242, 0.30);
+  background: rgba(4, 18, 23, 0.82);
+  color: #9aedf5;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+
+.osa-dojo__mission button:hover,
+.proof-strip__proof:hover {
+  border-color: rgba(91, 239, 255, 0.74);
+}
+
+.osa-dojo__proof-strip {
+  position: absolute;
+  z-index: 20;
+  right: 28px;
+  bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.osa-dojo__proof-strip > div,
+.osa-dojo__proof-strip > button {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+}
+
+.osa-dojo__proof-strip strong {
+  color: #b9e8ed;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.proof-strip__divider {
+  color: #ffcc58;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.proof-strip--verified strong { color: #68ffc0; }
+.proof-strip--pending strong { color: #ffd06a; }
+.proof-strip--failed strong { color: #ff6983; }
+.proof-strip--running strong { color: #71ecff; }
+.proof-strip--completed strong { color: #b8f2f8; }
+
+@media (max-width: 760px) {
+  .osa-dojo__topline {
+    inset: 12px 12px auto 12px;
+  }
+
+  .osa-dojo__runtime span:not(.runtime-dot),
+  .osa-dojo__runtime b {
+    display: none;
+  }
+
+  .osa-dojo__graffiti {
+    top: 74px;
+    font-size: 12px;
+  }
+
+  .osa-dojo__arena {
+    inset: 92px 8px 126px;
+  }
+
+  .dojo-agent {
+    width: 104px;
+  }
+
+  .dojo-agent__avatar {
+    width: 46px;
+    height: 46px;
+    font-size: 19px;
+  }
+
+  .dojo-agent span,
+  .dojo-agent small {
+    max-width: 104px;
+    font-size: 7px;
+  }
+
+  .dojo-core {
+    width: 128px;
+    height: 128px;
+  }
+
+  .dojo-core strong {
+    font-size: 10px;
+  }
+
+  .osa-dojo__mission {
+    left: 12px;
+    right: 12px;
+    bottom: 70px;
+    justify-content: space-between;
+  }
+
+  .osa-dojo__mission strong {
+    max-width: 210px;
+  }
+
+  .osa-dojo__proof-strip {
+    left: 12px;
+    right: 12px;
+    bottom: 14px;
+    justify-content: space-between;
+    gap: 7px;
+  }
+
+  .osa-dojo__proof-strip strong {
+    font-size: 8px;
+  }
+}
